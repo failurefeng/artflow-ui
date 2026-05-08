@@ -49,6 +49,59 @@ function generateJobId(): string {
   return `web_job_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function getApiKeyFromSettings(modelProvider: string): string | null {
+  try {
+    const settingsStr = localStorage.getItem('storyboard_settings');
+    if (settingsStr) {
+      const settings = JSON.parse(settingsStr);
+      return settings.apiKeys?.[modelProvider] || null;
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const legacyKeys = localStorage.getItem('storyboard_api_keys');
+    if (legacyKeys) {
+      const parsed = JSON.parse(legacyKeys);
+      return parsed[modelProvider] || null;
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+function saveApiKeyToSettings(provider: string, apiKey: string): void {
+  try {
+    let settings: Record<string, unknown> = {};
+    const settingsStr = localStorage.getItem('storyboard_settings');
+    if (settingsStr) {
+      settings = JSON.parse(settingsStr);
+    }
+    if (!settings.apiKeys) {
+      settings.apiKeys = {};
+    }
+    (settings.apiKeys as Record<string, string>)[provider] = apiKey;
+    localStorage.setItem('storyboard_settings', JSON.stringify(settings));
+
+    let legacyKeys: Record<string, string> = {};
+    try {
+      const legacyStr = localStorage.getItem('storyboard_api_keys');
+      if (legacyStr) {
+        legacyKeys = JSON.parse(legacyStr);
+      }
+    } catch {
+      // ignore
+    }
+    legacyKeys[provider] = apiKey;
+    localStorage.setItem('storyboard_api_keys', JSON.stringify(legacyKeys));
+  } catch {
+    // ignore
+  }
+}
+
 async function callGenerationAPI(request: {
   prompt: string;
   model: string;
@@ -60,18 +113,7 @@ async function callGenerationAPI(request: {
   const modelProvider = request.model.split('/')[0];
   const modelName = request.model.split('/')[1];
 
-  const apiKeys: Record<string, string> = {};
-  try {
-    const storedKeys = localStorage.getItem('storyboard_api_keys');
-    if (storedKeys) {
-      const parsed = JSON.parse(storedKeys);
-      Object.assign(apiKeys, parsed);
-    }
-  } catch {
-    // ignore
-  }
-
-  const apiKey = apiKeys[modelProvider];
+  const apiKey = getApiKeyFromSettings(modelProvider);
   if (!apiKey) {
     throw new Error(`请先在设置中配置 ${modelProvider} 的 API Key`);
   }
@@ -114,6 +156,8 @@ async function callGenerationAPI(request: {
     throw new Error(`不支持的模型提供商: ${modelProvider}`);
   }
 
+  console.info('[WebAI] Calling API', { endpoint, modelProvider, modelName });
+
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -122,6 +166,8 @@ async function callGenerationAPI(request: {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      mode: 'cors',
+      credentials: 'omit',
     });
 
     if (!response.ok) {
@@ -164,6 +210,7 @@ async function callGenerationAPI(request: {
 
     return imageResult;
   } catch (error) {
+    console.error('[WebAI] API call failed', error);
     if (error instanceof Error) {
       throw error;
     }
@@ -184,17 +231,7 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 export const webAiGateway: AiGateway = {
   setApiKey: async (provider: string, apiKey: string) => {
-    const apiKeys: Record<string, string> = {};
-    try {
-      const storedKeys = localStorage.getItem('storyboard_api_keys');
-      if (storedKeys) {
-        Object.assign(apiKeys, JSON.parse(storedKeys));
-      }
-    } catch {
-      // ignore
-    }
-    apiKeys[provider] = apiKey;
-    localStorage.setItem('storyboard_api_keys', JSON.stringify(apiKeys));
+    saveApiKeyToSettings(provider, apiKey);
   },
   generateImage: async (payload: GenerateImagePayload) => {
     const normalizedReferenceImages = await normalizeReferenceImages(payload);

@@ -119,6 +119,9 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @media screen and (max-width: 768px) {
@@ -298,5 +301,47 @@ html[data-platform='macos'] #root {
     max-height: 70vh;
     width: 92vw !important;
     margin: 0 4vw !important;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .node-header-title {
+    font-size: 11px !important;
+    max-width: 120px !important;
+  }
+
+  .node-header-meta {
+    font-size: 9px !important;
+  }
+
+  .react-flow__node {
+    font-size: 11px !important;
+  }
+
+  .react-flow__node .text-sm {
+    font-size: 11px !important;
+  }
+
+  .react-flow__node .text-xs {
+    font-size: 10px !important;
+  }
+
+  .react-flow__node .text-\[11px\] {
+    font-size: 9px !important;
+  }
+
+  .react-flow__node .text-\[10px\] {
+    font-size: 9px !important;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .node-header-title {
+    font-size: 10px !important;
+    max-width: 100px !important;
+  }
+
+  .node-header-meta {
+    font-size: 8px !important;
   }
 }
