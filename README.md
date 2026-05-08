@@ -9,10 +9,27 @@
 - ✂️ **分镜切割工具** - 一键将大图切割为分镜格
 - 📐 **图片裁剪与标注** - 内置多种图片处理工具
 - 💾 **本地存储** - 使用 IndexedDB 存储项目数据
+- 📱 **移动端优化** - 支持横竖屏切换，响应式布局
+
+## 衍生项目声明
+
+本项目是 [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot) 的 Android 移动端衍生版本。
+
+**原始项目**: [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot)
+> 基于节点画布的 AI 分镜工作台，一站式完成图片生成、编辑与分镜流程
+
+感谢原始项目作者的开源贡献，本项目继承其开源精神以 MIT 许可证发布。
 
 ## 快速开始
 
-### 构建 APK
+### 下载 APK
+
+直接从 GitHub Release 下载预构建的 APK：
+- 访问 [Releases](https://github.com/failurefeng/Storyboard-Copilot-Mobile/releases) 页面
+- 下载最新的 `Storyboard-Copilot-Mobile-v*.apk`
+- 安装到 Android 设备（可能需要允许安装未知来源应用）
+
+### 本地构建
 
 ```bash
 # 克隆项目
@@ -94,10 +111,28 @@ android/                       # Android 原生项目
 
 ## 自动构建
 
-本项目配置了 GitHub Actions，每次 push 到 main 分支会自动构建 APK。
+本项目配置了 GitHub Actions，每次创建 tag 或 push 到 main 分支会自动构建 APK 和 Release。
 
-构建产物可以在 GitHub Actions 运行日志中下载，或在 Release 页面获取。
+```bash
+# 创建版本并发布
+git tag v0.1.0 -m "版本说明"
+git push origin v0.1.0
+```
+
+## 致谢
+
+感谢以下开源项目：
+
+- [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot) - 原始桌面端项目
+- [Tauri](https://github.com/tauri-apps/tauri) - 桌面端框架（参考）
+- [Capacitor](https://github.com/ionic-team/capacitor) - 移动端打包框架
+- [React](https://github.com/facebook/react) - UI 框架
+- [@xyflow/react](https://github.com/xyflow/xyflow) - 画布组件库
 
 ## License
 
-MIT
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+---
+
+本项目以 MIT 许可证开源，欢迎社区贡献和改进。
