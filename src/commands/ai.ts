@@ -109,16 +109,24 @@ function createErrorWithDetails(message: string, details?: string): ErrorWithDet
   return error;
 }
 
+async function getWebAiGateway() {
+  const { webAiGateway } = await import('../webApi/webAiGateway');
+  return webAiGateway;
+}
+
 export async function setApiKey(provider: string, apiKey: string): Promise<void> {
   console.info('[AI] set_api_key', {
     provider,
     apiKeyMasked: apiKey ? `${apiKey.slice(0, 4)}***${apiKey.slice(-2)}` : '',
     tauri: isTauri(),
   });
-  if (!isTauri()) {
-    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+
+  if (isTauri()) {
+    return await invoke('set_api_key', { provider, apiKey });
+  } else {
+    const gateway = await getWebAiGateway();
+    return await gateway.setApiKey(provider, apiKey);
   }
-  return await invoke('set_api_key', { provider, apiKey });
 }
 
 export async function generateImage(request: GenerateRequest): Promise<string> {
@@ -128,49 +136,57 @@ export async function generateImage(request: GenerateRequest): Promise<string> {
     tauri: isTauri(),
   });
 
-  if (!isTauri()) {
-    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
-  }
-
-  try {
-    const rawResult = await invoke<unknown>('generate_image', { request });
-    if (typeof rawResult !== 'string') {
-      throw createErrorWithDetails(
-        'Generation returned non-string payload',
-        truncateText(
-          (() => {
-            try {
-              return JSON.stringify(rawResult, null, 2);
-            } catch {
-              return String(rawResult);
-            }
-          })(),
-          2000
-        )
-      );
+  if (isTauri()) {
+    try {
+      const rawResult = await invoke<unknown>('generate_image', { request });
+      if (typeof rawResult !== 'string') {
+        throw createErrorWithDetails(
+          'Generation returned non-string payload',
+          truncateText(
+            (() => {
+              try {
+                return JSON.stringify(rawResult, null, 2);
+              } catch {
+                return String(rawResult);
+              }
+            })(),
+            2000
+          )
+        );
+      }
+      const result = rawResult.trim();
+      if (!result) {
+        throw createErrorWithDetails('Generation returned empty image source');
+      }
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      console.info('[AI] generate_image success', {
+        elapsedMs,
+        resultPreview: truncateText(result, 220),
+      });
+      return result;
+    } catch (error) {
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      const normalizedError = normalizeInvokeError(error);
+      console.error('[AI] generate_image failed', {
+        elapsedMs,
+        request: sanitizeGenerateRequestForLog(request),
+        error,
+        normalizedError,
+      });
+      const commandError: ErrorWithDetails = new Error(normalizedError.message);
+      commandError.details = normalizedError.details;
+      throw commandError;
     }
-    const result = rawResult.trim();
-    if (!result) {
-      throw createErrorWithDetails('Generation returned empty image source');
-    }
-    const elapsedMs = Math.round(performance.now() - startedAt);
-    console.info('[AI] generate_image success', {
-      elapsedMs,
-      resultPreview: truncateText(result, 220),
+  } else {
+    const gateway = await getWebAiGateway();
+    return await gateway.generateImage({
+      prompt: request.prompt,
+      model: request.model,
+      size: request.size,
+      aspectRatio: request.aspect_ratio,
+      referenceImages: request.reference_images,
+      extraParams: request.extra_params,
     });
-    return result;
-  } catch (error) {
-    const elapsedMs = Math.round(performance.now() - startedAt);
-    const normalizedError = normalizeInvokeError(error);
-    console.error('[AI] generate_image failed', {
-      elapsedMs,
-      request: sanitizeGenerateRequestForLog(request),
-      error,
-      normalizedError,
-    });
-    const commandError: ErrorWithDetails = new Error(normalizedError.message);
-    commandError.details = normalizedError.details;
-    throw commandError;
   }
 }
 
@@ -180,29 +196,42 @@ export async function submitGenerateImageJob(request: GenerateRequest): Promise<
     tauri: isTauri(),
   });
 
-  if (!isTauri()) {
-    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  if (isTauri()) {
+    const jobId = await invoke<string>('submit_generate_image_job', { request });
+    if (typeof jobId !== 'string' || !jobId.trim()) {
+      throw new Error('submit_generate_image_job returned invalid job id');
+    }
+    return jobId.trim();
+  } else {
+    const gateway = await getWebAiGateway();
+    return await gateway.submitGenerateImageJob({
+      prompt: request.prompt,
+      model: request.model,
+      size: request.size,
+      aspectRatio: request.aspect_ratio,
+      referenceImages: request.reference_images,
+      extraParams: request.extra_params,
+    });
   }
-
-  const jobId = await invoke<string>('submit_generate_image_job', { request });
-  if (typeof jobId !== 'string' || !jobId.trim()) {
-    throw new Error('submit_generate_image_job returned invalid job id');
-  }
-  return jobId.trim();
 }
 
 export async function getGenerateImageJob(jobId: string): Promise<GenerationJobStatus> {
-  if (!isTauri()) {
-    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  if (isTauri()) {
+    const result = await invoke<GenerationJobStatus>('get_generate_image_job', { jobId });
+    if (!result || typeof result !== 'object' || typeof result.status !== 'string') {
+      throw new Error('get_generate_image_job returned invalid payload');
+    }
+    return result;
+  } else {
+    const gateway = await getWebAiGateway();
+    return await gateway.getGenerateImageJob(jobId);
   }
-
-  const result = await invoke<GenerationJobStatus>('get_generate_image_job', { jobId });
-  if (!result || typeof result !== 'object' || typeof result.status !== 'string') {
-    throw new Error('get_generate_image_job returned invalid payload');
-  }
-  return result;
 }
 
 export async function listModels(): Promise<string[]> {
-  return await invoke('list_models');
+  if (isTauri()) {
+    return await invoke('list_models');
+  } else {
+    return ['kie/m2.7', 'ppio/flux', 'fal/flux', 'grsai/flux'];
+  }
 }
