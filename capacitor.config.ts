@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.failurefeng.storyboardcopilot',
-  appName: 'Storyboard Copilot Mobile',
+  appId: 'com.storyboard.copilot',
+  appName: 'Storyboard Copilot',
   webDir: 'dist',
   android: {
     backgroundColor: '#111227',

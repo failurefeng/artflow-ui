@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.failurefeng.storyboardcopilot"
+    namespace = "com.storyboard.copilot"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.failurefeng.storyboardcopilot"
+        applicationId "com.storyboard.copilot"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
