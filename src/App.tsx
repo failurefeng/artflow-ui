@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { invoke } from '@tauri-apps/api/core';
 import { Canvas } from './features/canvas/Canvas';
-import { TitleBar } from './components/TitleBar';
 import { SettingsDialog } from './components/SettingsDialog';
-import { UpdateAvailableDialog, type UpdateIgnoreMode } from './components/UpdateAvailableDialog';
 import { GlobalErrorDialog } from './components/GlobalErrorDialog';
 import { ProjectManager } from './features/project/ProjectManager';
 import { useThemeStore } from './stores/themeStore';
 import { useProjectStore } from './stores/projectStore';
 import { useSettingsStore } from './stores/settingsStore';
-import {
-  checkForUpdate,
-  isUpdateVersionSuppressed,
-  suppressUpdateVersion,
-} from './features/update/application/checkForUpdate';
 import {
   subscribeOpenGlobalErrorDialog,
   type GlobalErrorDialogDetail,
@@ -23,6 +15,7 @@ import {
   subscribeOpenSettingsDialog,
   type SettingsCategory,
 } from './features/settings/settingsEvents';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 function toRgbCssValue(hexColor: string): string {
   const hex = hexColor.replace('#', '');
@@ -40,20 +33,26 @@ function App() {
   const uiRadiusPreset = useSettingsStore((state) => state.uiRadiusPreset);
   const themeTonePreset = useSettingsStore((state) => state.themeTonePreset);
   const accentColor = useSettingsStore((state) => state.accentColor);
-  const autoCheckAppUpdateOnLaunch = useSettingsStore((state) => state.autoCheckAppUpdateOnLaunch);
-  const enableUpdateDialog = useSettingsStore((state) => state.enableUpdateDialog);
-  const setEnableUpdateDialog = useSettingsStore((state) => state.setEnableUpdateDialog);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialCategory, setSettingsInitialCategory] = useState<SettingsCategory>('general');
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
-  const [latestVersion, setLatestVersion] = useState<string>('');
-  const [currentVersion, setCurrentVersion] = useState<string>('');
   const [globalError, setGlobalError] = useState<GlobalErrorDialogDetail | null>(null);
 
   const isHydrated = useProjectStore((state) => state.isHydrated);
   const hydrate = useProjectStore((state) => state.hydrate);
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const closeProject = useProjectStore((state) => state.closeProject);
+
+  useEffect(() => {
+    const initCapacitorStatusBar = async () => {
+      try {
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#111227' });
+      } catch {
+        // Not running in Capacitor
+      }
+    };
+    void initCapacitorStatusBar();
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -103,101 +102,6 @@ function App() {
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
-
-    const notifyFrontendReady = async (attempt = 1) => {
-      if (cancelled) {
-        return;
-      }
-
-      try {
-        await invoke('frontend_ready');
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        if (attempt === 1 || attempt % 10 === 0) {
-          console.warn('failed to notify frontend readiness', error);
-        }
-
-        const retryDelayMs = Math.min(500, 80 * attempt);
-        retryTimer = window.setTimeout(() => {
-          void notifyFrontendReady(attempt + 1);
-        }, retryDelayMs);
-      }
-    };
-
-    requestAnimationFrame(() => {
-      void notifyFrontendReady();
-    });
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) {
-        window.clearTimeout(retryTimer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    let cancelled = false;
-    const runUpdateCheck = async () => {
-      if (!autoCheckAppUpdateOnLaunch) {
-        return;
-      }
-      const result = await checkForUpdate();
-      if (!cancelled && result.hasUpdate && result.latestVersion && enableUpdateDialog) {
-        if (isUpdateVersionSuppressed(result.latestVersion)) {
-          return;
-        }
-        setLatestVersion(result.latestVersion ?? '');
-        setCurrentVersion(result.currentVersion ?? '');
-        setShowUpdateDialog(true);
-      }
-    };
-
-    void runUpdateCheck();
-    return () => {
-      cancelled = true;
-    };
-  }, [isHydrated, autoCheckAppUpdateOnLaunch, enableUpdateDialog]);
-
-  const handleManualCheckUpdate = async (): Promise<'has-update' | 'up-to-date' | 'failed'> => {
-    const result = await checkForUpdate();
-    if (!result.hasUpdate) {
-      return result.error ? 'failed' : 'up-to-date';
-    }
-
-    setLatestVersion(result.latestVersion ?? '');
-    setCurrentVersion(result.currentVersion ?? '');
-
-    if (enableUpdateDialog) {
-      setShowUpdateDialog(true);
-    }
-
-    return 'has-update';
-  };
-
-  const handleApplyIgnore = (mode: UpdateIgnoreMode) => {
-    if (mode === 'forever-all') {
-      setEnableUpdateDialog(false);
-      return;
-    }
-
-    if (!latestVersion) {
-      return;
-    }
-
-    suppressUpdateVersion(latestVersion, mode === 'today-version' ? 'today' : 'forever');
-  };
-
   if (!isHydrated) {
     return (
       <ReactFlowProvider>
@@ -209,13 +113,13 @@ function App() {
   return (
     <ReactFlowProvider>
       <div className="w-full h-full flex flex-col bg-bg-dark">
-        <TitleBar
+        <MobileHeader
+          showBackButton={!!currentProjectId}
+          onBackClick={closeProject}
           onSettingsClick={() => {
             setSettingsInitialCategory('general');
             setShowSettings(true);
           }}
-          showBackButton={!!currentProjectId}
-          onBackClick={closeProject}
         />
 
         <main className="flex-1 relative">
@@ -226,14 +130,7 @@ function App() {
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
           initialCategory={settingsInitialCategory}
-          onCheckUpdate={handleManualCheckUpdate}
-        />
-        <UpdateAvailableDialog
-          isOpen={showUpdateDialog}
-          onClose={() => setShowUpdateDialog(false)}
-          latestVersion={latestVersion}
-          currentVersion={currentVersion}
-          onApplyIgnore={handleApplyIgnore}
+          onCheckUpdate={async () => 'up-to-date'}
         />
         <GlobalErrorDialog
           isOpen={Boolean(globalError)}
@@ -245,6 +142,43 @@ function App() {
         />
       </div>
     </ReactFlowProvider>
+  );
+}
+
+interface MobileHeaderProps {
+  showBackButton: boolean;
+  onBackClick: () => void;
+  onSettingsClick: () => void;
+}
+
+function MobileHeader({ showBackButton, onBackClick, onSettingsClick }: MobileHeaderProps) {
+  return (
+    <header className="flex items-center justify-between px-4 py-3 bg-bg-primary border-b border-border-default">
+      <div className="flex items-center gap-3">
+        {showBackButton ? (
+          <button
+            onClick={onBackClick}
+            className="p-2 -ml-2 rounded-lg hover:bg-bg-secondary transition-colors"
+            aria-label="返回"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+        ) : null}
+        <h1 className="text-lg font-semibold text-text-primary">分镜助手</h1>
+      </div>
+      <button
+        onClick={onSettingsClick}
+        className="p-2 -mr-2 rounded-lg hover:bg-bg-secondary transition-colors"
+        aria-label="设置"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </header>
   );
 }
 

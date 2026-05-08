@@ -9,12 +9,6 @@ import {
   type CanvasNodeData,
 } from './canvasStore';
 import {
-  deleteProjectRecord,
-  getProjectRecord,
-  listProjectSummaries,
-  renameProjectRecord,
-  updateProjectViewportRecord,
-  upsertProjectRecord,
   type ProjectRecord,
   type ProjectSummaryRecord,
 } from '@/commands/projectState';
@@ -51,6 +45,23 @@ const queuedViewportUpserts = new Map<string, string>();
 const viewportUpsertTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const viewportUpsertsInFlight = new Set<string>();
 const deletingProjectIds = new Set<string>();
+
+let projectGateway: {
+  listProjectSummaries: () => Promise<ProjectSummaryRecord[]>;
+  getProjectRecord: (projectId: string) => Promise<ProjectRecord | null>;
+  upsertProjectRecord: (record: ProjectRecord) => Promise<void>;
+  updateProjectViewportRecord: (projectId: string, viewportJson: string) => Promise<void>;
+  renameProjectRecord: (projectId: string, name: string, updatedAt: number) => Promise<void>;
+  deleteProjectRecord: (projectId: string) => Promise<void>;
+} | null = null;
+
+async function initProjectGateway() {
+  if (!projectGateway) {
+    const gatewayModule = await import('../webApi/projectGatewayAdapter');
+    projectGateway = await gatewayModule.getProjectGateway();
+  }
+  return projectGateway;
+}
 
 export interface ProjectSummary {
   id: string;
@@ -408,7 +419,7 @@ interface FlushProjectUpsertOptions {
   bypassIdle?: boolean;
 }
 
-function flushProjectUpsert(projectId: string, options?: FlushProjectUpsertOptions): void {
+async function flushProjectUpsert(projectId: string, options?: FlushProjectUpsertOptions): Promise<void> {
   if (deletingProjectIds.has(projectId) || projectUpsertsInFlight.has(projectId)) {
     return;
   }
@@ -429,30 +440,32 @@ function flushProjectUpsert(projectId: string, options?: FlushProjectUpsertOptio
     }
 
     if (queuedProjectUpserts.has(projectId)) {
-      flushProjectUpsert(projectId);
+      void flushProjectUpsert(projectId);
     }
   };
 
-  const executePersist = () => {
+  const executePersist = async () => {
     if (deletingProjectIds.has(projectId)) {
       settle();
       return;
     }
 
+    const gateway = await initProjectGateway();
     const record = toProjectRecord(project);
-    void upsertProjectRecord(record)
-      .catch((error) => {
-        console.error('Failed to persist project record', error);
-      })
-      .finally(settle);
+    await gateway.upsertProjectRecord(record).catch((error) => {
+      console.error('Failed to persist project record', error);
+    });
+    settle();
   };
 
   if (options?.bypassIdle) {
-    executePersist();
+    await executePersist();
     return;
   }
 
-  scheduleIdlePersist(executePersist);
+  scheduleIdlePersist(() => {
+    void executePersist();
+  });
 }
 
 function queueProjectUpsert(project: Project, options?: PersistProjectOptions): void {
@@ -468,13 +481,13 @@ function queueProjectUpsert(project: Project, options?: PersistProjectOptions): 
 
   const debounceMs = options?.immediate ? 0 : (options?.debounceMs ?? UPSERT_DEBOUNCE_MS);
   if (debounceMs <= 0) {
-    flushProjectUpsert(projectId, { bypassIdle: true });
+    void flushProjectUpsert(projectId, { bypassIdle: true });
     return;
   }
 
   const timer = setTimeout(() => {
     projectUpsertTimers.delete(projectId);
-    flushProjectUpsert(projectId);
+    void flushProjectUpsert(projectId);
   }, debounceMs);
   projectUpsertTimers.set(projectId, timer);
 }
@@ -484,7 +497,7 @@ function persistProject(project: Project, options?: PersistProjectOptions): void
   queueProjectUpsert(project, options);
 }
 
-function flushViewportUpsert(projectId: string): void {
+async function flushViewportUpsert(projectId: string): Promise<void> {
   if (deletingProjectIds.has(projectId) || viewportUpsertsInFlight.has(projectId)) {
     return;
   }
@@ -497,7 +510,8 @@ function flushViewportUpsert(projectId: string): void {
   queuedViewportUpserts.delete(projectId);
   viewportUpsertsInFlight.add(projectId);
 
-  void updateProjectViewportRecord(projectId, viewportJson)
+  const gateway = await initProjectGateway();
+  await gateway.updateProjectViewportRecord(projectId, viewportJson)
     .catch((error) => {
       console.error('Failed to persist project viewport', error);
     })
@@ -509,7 +523,7 @@ function flushViewportUpsert(projectId: string): void {
       }
 
       if (queuedViewportUpserts.has(projectId)) {
-        flushViewportUpsert(projectId);
+        void flushViewportUpsert(projectId);
       }
     });
 }
@@ -530,36 +544,36 @@ function queueViewportUpsert(
 
   const debounceMs = options?.immediate ? 0 : (options?.debounceMs ?? VIEWPORT_UPSERT_DEBOUNCE_MS);
   if (debounceMs <= 0) {
-    flushViewportUpsert(projectId);
+    void flushViewportUpsert(projectId);
     return;
   }
 
   const timer = setTimeout(() => {
     viewportUpsertTimers.delete(projectId);
-    flushViewportUpsert(projectId);
+    void flushViewportUpsert(projectId);
   }, debounceMs);
   viewportUpsertTimers.set(projectId, timer);
 }
 
-function persistProjectDelete(projectId: string): void {
+async function persistProjectDelete(projectId: string): Promise<void> {
   deletingProjectIds.add(projectId);
   clearQueuedProjectUpsert(projectId);
   clearQueuedViewportUpsert(projectId);
 
-  const attemptDelete = (retryCount: number): void => {
+  const attemptDelete = async (retryCount: number): Promise<void> => {
     if (projectUpsertsInFlight.has(projectId) || viewportUpsertsInFlight.has(projectId)) {
       if (retryCount >= MAX_DELETE_RETRIES) {
         deletingProjectIds.delete(projectId);
         return;
       }
 
-      setTimeout(() => {
-        attemptDelete(retryCount + 1);
-      }, DELETE_RETRY_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, DELETE_RETRY_DELAY_MS));
+      await attemptDelete(retryCount + 1);
       return;
     }
 
-    void deleteProjectRecord(projectId)
+    const gateway = await initProjectGateway();
+    await gateway.deleteProjectRecord(projectId)
       .catch((error) => {
         console.error('Failed to delete project record', error);
       })
@@ -568,7 +582,7 @@ function persistProjectDelete(projectId: string): void {
       });
   };
 
-  attemptDelete(0);
+  await attemptDelete(0);
 }
 
 function updateProjectSummary(
@@ -617,7 +631,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
 
     try {
-      const records = await listProjectSummaries();
+      const gateway = await initProjectGateway();
+      const records = await gateway.listProjectSummaries();
       const projects = records.map(toProjectSummary).sort((a, b) => b.updatedAt - a.updatedAt);
       set({
         projects,
@@ -626,7 +641,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         isHydrated: true,
       });
     } catch (error) {
-      console.error('Failed to hydrate project summaries from SQLite', error);
+      console.error('Failed to hydrate project summaries', error);
       set({
         projects: [],
         currentProjectId: null,
@@ -669,10 +684,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       isOpeningProject: false,
     }));
 
-    persistProjectDelete(id);
+    void persistProjectDelete(id);
   },
 
-  renameProject: (id, name) => {
+  renameProject: async (id, name) => {
     const now = Date.now();
 
     set((state) => {
@@ -705,9 +720,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return;
     }
 
-    void renameProjectRecord(id, name, now).catch((error) => {
+    try {
+      const gateway = await initProjectGateway();
+      await gateway.renameProjectRecord(id, name, now);
+    } catch (error) {
       console.error('Failed to rename project record', error);
-    });
+    }
   },
 
   openProject: (id) => {
@@ -717,7 +735,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     void (async () => {
       try {
-        const record = await getProjectRecord(id);
+        const gateway = await initProjectGateway();
+        const record = await gateway.getProjectRecord(id);
         if (reqSeq !== openProjectRequestSeq) {
           return;
         }
