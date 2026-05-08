@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SlidersHorizontal, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +49,7 @@ interface ModelParamsControlsProps {
   paramsPanelClassName?: string;
   providerOptionClassName?: string;
   modelOptionClassName?: string;
+  draggable?: boolean;
 }
 
 interface PanelAnchor {
@@ -163,6 +164,7 @@ export const ModelParamsControls = memo(({
   paramsPanelClassName = 'w-[420px] p-3',
   providerOptionClassName = DEFAULT_PROVIDER_OPTION_CLASS_NAME,
   modelOptionClassName = DEFAULT_MODEL_OPTION_CLASS_NAME,
+  draggable = false,
 }: ModelParamsControlsProps) => {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -183,7 +185,50 @@ export const ModelParamsControls = memo(({
   const [otherParamsAnchorBaseWidth, setOtherParamsAnchorBaseWidth] = useState<number | null>(null);
   const [panelProviderId, setPanelProviderId] = useState(selectedModel.providerId);
   const [missingKeyProviderName, setMissingKeyProviderName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [customPosition, setCustomPosition] = useState<PanelAnchor | null>(null);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
+
+  const handlePanelDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!draggable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDragOffset({ x: clientX, y: clientY });
+    setIsDragging(true);
+  }, [draggable]);
+
+  const handlePanelDrag = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDragging || !draggable) return;
+    e.preventDefault();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setCustomPosition({
+      left: clientX - dragOffset.x,
+      top: clientY - dragOffset.y,
+    });
+  }, [isDragging, dragOffset, draggable]);
+
+  const handlePanelDragEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handlePanelDrag);
+      document.addEventListener('mouseup', handlePanelDragEnd);
+      document.addEventListener('touchmove', handlePanelDrag, { passive: false });
+      document.addEventListener('touchend', handlePanelDragEnd);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handlePanelDrag);
+      document.removeEventListener('mouseup', handlePanelDragEnd);
+      document.removeEventListener('touchmove', handlePanelDrag);
+      document.removeEventListener('touchend', handlePanelDragEnd);
+    };
+  }, [isDragging, handlePanelDrag, handlePanelDragEnd]);
 
   const selectedProvider = useMemo(
     () => getModelProvider(selectedModel.providerId),
@@ -461,10 +506,31 @@ export const ModelParamsControls = memo(({
       {typeof document !== 'undefined' && renderPanel === 'model' && createPortal(
         <div
           ref={modelPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          style={buildPanelStyle(modelPanelAnchor, modelPanelAlign)}
+          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
+          style={{
+            ...buildPanelStyle(
+              draggable && customPosition 
+                ? { left: customPosition.left, top: customPosition.top } 
+                : modelPanelAnchor, 
+              modelPanelAlign
+            ),
+            transform: draggable && customPosition 
+              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
+              : undefined,
+            ...(draggable ? { left: 0, top: 0 } : {}),
+          }}
+          onMouseDown={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
+          onTouchStart={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
         >
+          {draggable && (
+            <div className="flex justify-center py-1">
+              <div className="w-8 h-1 rounded-full bg-text-muted/30" />
+            </div>
+          )}
           <UiPanel className={modelPanelClassName}>
             <div className="ui-scrollbar max-h-[340px] space-y-4 overflow-y-auto p-1">
               <section>
@@ -542,10 +608,31 @@ export const ModelParamsControls = memo(({
       {typeof document !== 'undefined' && renderPanel === 'params' && createPortal(
         <div
           ref={paramsPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          style={buildPanelStyle(paramsPanelAnchor, paramsPanelAlign)}
+          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
+          style={{
+            ...buildPanelStyle(
+              draggable && customPosition 
+                ? { left: customPosition.left, top: customPosition.top } 
+                : paramsPanelAnchor, 
+              paramsPanelAlign
+            ),
+            transform: draggable && customPosition 
+              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
+              : undefined,
+            ...(draggable ? { left: 0, top: 0 } : {}),
+          }}
+          onMouseDown={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
+          onTouchStart={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
         >
+          {draggable && (
+            <div className="flex justify-center py-1">
+              <div className="w-8 h-1 rounded-full bg-text-muted/30" />
+            </div>
+          )}
           <UiPanel className={paramsPanelClassName}>
             <div>
               <div className="mb-2 text-xs text-text-muted">{t('modelParams.quality')}</div>
@@ -709,10 +796,31 @@ export const ModelParamsControls = memo(({
       {typeof document !== 'undefined' && renderPanel === 'otherParams' && createPortal(
         <div
           ref={otherParamsPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          style={buildPanelStyle(otherParamsPanelAnchor, 'center')}
+          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
+          style={{
+            ...buildPanelStyle(
+              draggable && customPosition 
+                ? { left: customPosition.left, top: customPosition.top } 
+                : otherParamsPanelAnchor, 
+              'center'
+            ),
+            transform: draggable && customPosition 
+              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
+              : undefined,
+            ...(draggable ? { left: 0, top: 0 } : {}),
+          }}
+          onMouseDown={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
+          onTouchStart={(e) => {
+            if (draggable) handlePanelDragStart(e);
+          }}
         >
+          {draggable && (
+            <div className="flex justify-center py-1">
+              <div className="w-8 h-1 rounded-full bg-text-muted/30" />
+            </div>
+          )}
           <UiPanel className={OTHER_PARAMS_PANEL_CLASS_NAME}>
             <div className="space-y-3">
               {showWebSearchToggle && (

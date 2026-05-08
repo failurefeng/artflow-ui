@@ -1654,8 +1654,9 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
           paramsChipClassName={NODE_CONTROL_PARAMS_CHIP_CLASS}
           modelPanelAlign="center"
           paramsPanelAlign="center"
-          modelPanelClassName="inline-block min-w-[300px] max-w-[calc(100vw-32px)] p-2"
-          paramsPanelClassName="w-[420px] p-3"
+          modelPanelClassName="inline-block min-w-[240px] max-w-[calc(100vw-32px)] p-2"
+          paramsPanelClassName="w-[280px] sm:w-[320px] max-w-[calc(100vw-32px)] p-3"
+          draggable={true}
         />
 
         <UiButton

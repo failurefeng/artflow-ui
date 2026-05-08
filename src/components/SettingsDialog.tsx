@@ -382,9 +382,9 @@ export function SettingsDialog({
         className={`absolute inset-0 bg-black/90 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
-      <div className="relative w-[min(96vw,1120px)] max-h-[90vh] flex flex-col">
+      <div className="relative w-[min(96vw,1120px)]">
         <div
-          className={`relative mx-auto w-full h-full max-h-[85vh] overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex flex-col settings-dialog-container`}
+          className={`relative mx-auto h-[500px] w-[700px] overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex`}
         >
           {/* Close button */}
           <button
@@ -395,7 +395,7 @@ export function SettingsDialog({
           </button>
 
           {/* Sidebar */}
-          <div className="w-[180px] sm:hidden md:hidden lg:flex bg-bg-dark border-r border-border-dark flex flex-col">
+          <div className="w-[180px] bg-bg-dark border-r border-border-dark flex flex-col">
             <div className="px-4 py-4">
               <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
                 {t('settings.title')}
@@ -487,26 +487,6 @@ export function SettingsDialog({
                 <span className="text-sm">{t('settings.about')}</span>
               </button>
             </nav>
-          </div>
-
-          {/* Mobile Tab Bar */}
-          <div className="hidden sm:flex md:flex lg:hidden bg-bg-dark border-b border-border-dark overflow-x-auto">
-            {['general', 'providers', 'appearance', 'pricing', 'experimental', 'about'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat as SettingsCategory)}
-                className={`
-                flex-shrink-0 px-4 py-3 text-center
-                transition-colors border-b-2
-                ${activeCategory === cat
-                    ? 'border-accent text-accent'
-                    : 'border-transparent text-text-muted hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-xs whitespace-nowrap">{t(`settings.${cat}`)}</span>
-              </button>
-            ))}
           </div>
 
           {/* Content */}
@@ -1046,20 +1026,20 @@ export function SettingsDialog({
                     <div className="flex items-start gap-4">
                       <img
                         src="/app-icon.png"
-                        alt="Storyboard Copilot Mobile"
+                        alt={t('settings.aboutAppName')}
                         className="h-14 w-14 rounded-lg border border-border-dark object-cover"
                       />
                       <div className="min-w-0 flex-1">
                         <a
-                          href="https://github.com/failurefeng/Storyboard-Copilot-Mobile"
+                          href="https://space.bilibili.com/39337803"
                           target="_blank"
                           rel="noreferrer"
                           className="text-base font-semibold text-accent hover:underline"
                         >
-                          Storyboard Copilot Mobile
+                          {t('settings.aboutAppName')}
                         </a>
                         <p className="mt-1 text-sm text-text-muted">
-                          基于节点画布的 AI 分镜工作台 - 移动端版本
+                          {t('settings.aboutIntro')}
                         </p>
                       </div>
                     </div>
@@ -1067,39 +1047,28 @@ export function SettingsDialog({
 
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4 space-y-2 text-sm">
                     <p className="text-text-dark">
-                      {t('settings.aboutVersionLabel')}: <span className="text-text-muted">{appVersion || '1.0.0'}</span>
+                      {t('settings.aboutVersionLabel')}: <span className="text-text-muted">{appVersion || t('settings.aboutVersionUnknown')}</span>
                     </p>
                     <p className="text-text-dark">
                       {t('settings.aboutAuthorLabel')}:{' '}
                       <a
-                        href="https://github.com/failurefeng"
+                        href="https://space.bilibili.com/39337803"
                         target="_blank"
                         rel="noreferrer"
                         className="text-accent hover:underline"
                       >
-                        failurefeng
+                        {t('settings.aboutAuthor')}
                       </a>
                     </p>
                     <p className="text-text-dark">
                       {t('settings.aboutRepositoryLabel')}:{' '}
                       <a
-                        href="https://github.com/failurefeng/Storyboard-Copilot-Mobile"
+                        href="https://github.com/henjicc/Storyboard-Copilot"
                         target="_blank"
                         rel="noreferrer"
                         className="text-accent hover:underline break-all"
                       >
-                        https://github.com/failurefeng/Storyboard-Copilot-Mobile
-                      </a>
-                    </p>
-                    <p className="text-text-muted text-xs pt-2 border-t border-border-dark">
-                      衍生自{' '}
-                      <a
-                        href="https://github.com/henjicc/Storyboard-Copilot"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent hover:underline"
-                      >
-                        henjicc/Storyboard-Copilot
+                        https://github.com/henjicc/Storyboard-Copilot
                       </a>
                     </p>
                   </div>
