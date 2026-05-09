@@ -383,9 +383,9 @@ export function SettingsDialog({
         className={`absolute inset-0 bg-black/90 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
-      <div className="relative w-[min(96vw,1120px)]">
+      <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full">
         <div
-          className={`relative mx-auto h-[500px] w-[700px] overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex`}
+          className={`relative mx-auto max-h-[90vh] max-md:max-h-full w-[700px] max-md:w-full max-md:h-[95vh] max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block`}
         >
           {/* Close button */}
           <button
@@ -395,8 +395,8 @@ export function SettingsDialog({
             <X className="w-5 h-5 text-text-muted" />
           </button>
 
-          {/* Sidebar */}
-          <div className="w-[180px] bg-bg-dark border-r border-border-dark flex flex-col">
+          {/* Sidebar - hidden on mobile, shows as header */}
+          <div className="w-[180px] max-md:hidden bg-bg-dark border-r border-border-dark flex flex-col">
             <div className="px-4 py-4">
               <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
                 {t('settings.title')}
@@ -499,13 +499,13 @@ export function SettingsDialog({
                   }
               `}
               >
-                <span className="text-sm">{t('settings.data') || '数据管理'}</span>
+                <span className="text-sm">{t('settings.data') || '数据'}</span>
               </button>
             </nav>
           </div>
 
           {/* Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col max-md:flex-1">
             {activeCategory === 'providers' && (
               <>
                 <div className="px-6 py-5 border-b border-border-dark">
@@ -517,7 +517,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   {providers.map((provider) => {
                     const displayName = i18n.language.startsWith('zh') ? provider.label : provider.name;
                     const isRevealed = Boolean(revealedApiKeys[provider.id]);
@@ -648,7 +648,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <h3 className="text-sm font-medium text-text-dark">
                       {t('settings.radiusPreset')}
@@ -770,7 +770,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <SettingsCheckboxCard
                     checked={localShowNodePrice}
                     onCheckedChange={setLocalShowNodePrice}
@@ -878,7 +878,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <SettingsCheckboxCard
                     checked={localStoryboardGenKeepStyleConsistent}
                     onCheckedChange={setLocalStoryboardGenKeepStyleConsistent}
@@ -991,7 +991,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <SettingsCheckboxCard
                     checked={localEnableStoryboardGenGridPreviewShortcut}
                     onCheckedChange={setLocalEnableStoryboardGenGridPreviewShortcut}
@@ -1036,7 +1036,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <div className="flex items-start gap-4">
                       <img
@@ -1149,14 +1149,14 @@ export function SettingsDialog({
               <>
                 <div className="px-6 py-5 border-b border-border-dark">
                   <h2 className="text-lg font-semibold text-text-dark">
-                    {t('settings.data') || '数据管理'}
+                    {t('settings.data') || '数据'}
                   </h2>
                   <p className="text-sm text-text-muted mt-1">
                     {t('settings.dataDesc') || '导出和导入您的配置和项目数据'}
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
                   <DataManagementPanel />
                 </div>
 

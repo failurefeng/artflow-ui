@@ -2,6 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeToolbar as ReactFlowNodeToolbar } from '@xyflow/react';
 import { Copy, Crop, Download, FolderOpen, PenLine, RefreshCw, Scissors, Trash2, Unlink2 } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Clipboard } from '@capacitor/clipboard';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -193,7 +195,15 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
     }, 1100);
 
     try {
-      await copyImageSourceToClipboard(imageSource);
+      const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+      if (isMobile && imageSource.startsWith('data:')) {
+        const base64Data = imageSource.split(',')[1];
+        if (base64Data) {
+          await Clipboard.write({ string: imageSource });
+        }
+      } else {
+        await copyImageSourceToClipboard(imageSource);
+      }
     } catch (error) {
       console.error('Failed to copy image to clipboard', error);
     }
@@ -271,16 +281,40 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
     }
 
     try {
-      const selectedPath = await save({
-        defaultPath: `node-${node.id}.png`,
-      });
-      if (!selectedPath || Array.isArray(selectedPath)) {
-        return;
+      const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+      const fileName = `storyboard_${node.id}_${Date.now()}.png`;
+      
+      if (isMobile) {
+        let imageData = imageSource;
+        if (imageSource.startsWith('file://') || imageSource.startsWith('http')) {
+          const response = await fetch(imageSource);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          imageData = await new Promise<string>((resolve) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        }
+        
+        const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+        });
+        console.log('[Download] Image saved to Documents/' + fileName);
+      } else {
+        const selectedPath = await save({
+          defaultPath: fileName,
+        });
+        if (!selectedPath || Array.isArray(selectedPath)) {
+          return;
+        }
+        await saveImageSourceToPath(imageSource, selectedPath);
       }
-      await saveImageSourceToPath(imageSource, selectedPath);
       closeDownloadMenu();
     } catch (error) {
-      console.error('Failed to save image with save-as', error);
+      console.error('Failed to save image', error);
     }
   }, [closeDownloadMenu, imageSource, node.id]);
 
@@ -290,7 +324,29 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
         return;
       }
       try {
-        await saveImageSourceToDirectory(imageSource, targetDir, `node-${node.id}`);
+        const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+        
+        if (isMobile) {
+          let imageData = imageSource;
+          if (imageSource.startsWith('file://') || imageSource.startsWith('http')) {
+            const response = await fetch(imageSource);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            imageData = await new Promise<string>((resolve) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+          }
+          
+          const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+          await Filesystem.writeFile({
+            path: `node-${node.id}.png`,
+            data: base64Data,
+            directory: Directory.Documents,
+          });
+        } else {
+          await saveImageSourceToDirectory(imageSource, targetDir, `node-${node.id}`);
+        }
         closeDownloadMenu();
       } catch (error) {
         console.error('Failed to save image to preset dir', error);

@@ -260,7 +260,49 @@ export async function getDataPath(): Promise<DataPathInfo> {
 
 export async function exportData(): Promise<string> {
   if (isTauri()) {
-    return await invoke<string>('export_data');
+    const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+    
+    if (isMobile) {
+      const { webProjectGateway } = await import('../webApi/webProjectGateway');
+      const { useSettingsStore } = await import('../stores/settingsStore');
+      
+      const settings = useSettingsStore.getState();
+      const apiKeys = settings.apiKeys;
+      
+      let projects: unknown[] = [];
+      try {
+        const summaries = await webProjectGateway.listProjectSummaries();
+        const projectRecords = [];
+        for (const summary of summaries) {
+          const record = await webProjectGateway.getProjectRecord(summary.id);
+          if (record) {
+            projectRecords.push({
+              id: record.id,
+              name: record.name,
+              created_at: record.createdAt,
+              updated_at: record.updatedAt,
+              nodes_json: record.nodesJson,
+              edges_json: record.edgesJson,
+              viewport_json: record.viewportJson,
+              history_json: record.historyJson,
+            });
+          }
+        }
+        projects = projectRecords;
+      } catch (error) {
+        console.warn('[Export] Failed to export projects from IndexedDB:', error);
+      }
+      
+      return JSON.stringify({
+        version: '2.0',
+        app_keys: apiKeys,
+        settings: {},
+        projects: projects,
+        exported_at: Date.now(),
+      }, null, 2);
+    } else {
+      return await invoke<string>('export_data');
+    }
   } else {
     const settings = localStorage.getItem('storyboard_settings') || '{}';
     const apiKeys = localStorage.getItem('storyboard_api_keys') || '{}';
@@ -281,8 +323,50 @@ export interface ImportResult {
 
 export async function importData(data: string): Promise<ImportResult> {
   if (isTauri()) {
-    const count = await invoke<number>('import_data', { data });
-    return { projects_imported: count };
+    const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+    
+    if (isMobile) {
+      const parsed = JSON.parse(data);
+      let projectsImported = 0;
+      
+      if (parsed.app_keys && typeof parsed.app_keys === 'object') {
+        const { useSettingsStore } = await import('../stores/settingsStore');
+        const setProviderApiKey = useSettingsStore.getState().setProviderApiKey;
+        for (const [providerId, apiKey] of Object.entries(parsed.app_keys)) {
+          if (typeof apiKey === 'string' && apiKey.trim()) {
+            setProviderApiKey(providerId, apiKey);
+          }
+        }
+      }
+      
+      if (parsed.projects && Array.isArray(parsed.projects)) {
+        const { webProjectGateway } = await import('../webApi/webProjectGateway');
+        for (const project of parsed.projects) {
+          try {
+            const record = {
+              id: project.id,
+              name: project.name,
+              createdAt: project.created_at || project.createdAt || Date.now(),
+              updatedAt: project.updated_at || project.updatedAt || Date.now(),
+              nodeCount: project.node_count || project.nodeCount || 0,
+              nodesJson: project.nodes_json || project.nodesJson || '[]',
+              edgesJson: project.edges_json || project.edgesJson || '[]',
+              viewportJson: project.viewport_json || project.viewportJson || '{"x":0,"y":0,"zoom":1}',
+              historyJson: project.history_json || project.historyJson || '{"past":[],"future":[]}',
+            };
+            await webProjectGateway.upsertProjectRecord(record);
+            projectsImported++;
+          } catch (error) {
+            console.warn('[Import] Failed to import project:', project.id, error);
+          }
+        }
+      }
+      
+      return { projects_imported: projectsImported };
+    } else {
+      const count = await invoke<number>('import_data', { data });
+      return { projects_imported: count };
+    }
   } else {
     const parsed = JSON.parse(data);
     let projectsImported = 0;
