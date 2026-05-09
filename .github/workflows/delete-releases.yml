@@ -1,0 +1,29 @@
+name: Delete All Releases
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delete-releases:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all releases
+        run: |
+          echo "Fetching all releases..."
+          RELEASES=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" | jq -r '.[].id')
+          
+          echo "Found releases: $RELEASES"
+          
+          for ID in $RELEASES; do
+            echo "Deleting release $ID..."
+            curl -s -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$ID"
+            echo "Deleted release $ID"
+          done
+          
+          echo "All releases deleted!"
