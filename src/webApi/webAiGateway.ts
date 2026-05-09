@@ -364,7 +364,6 @@ async function callGenerationAPI(request: {
       if (line.startsWith('data: ')) {
         try {
           const json = JSON.parse(line.slice(6));
-          // Parse GRSAI direct format
           const grsaiResponse = json as {
             id?: string;
             results?: Array<{ url?: string; content?: string }>;
@@ -376,30 +375,22 @@ async function callGenerationAPI(request: {
           
           console.info('[GRSAI] Status:', grsaiResponse.status, 'Progress:', grsaiResponse.progress);
           
-          // If we have results, use it
+          // If we have results with URL, this is our final result
           if (grsaiResponse.results?.[0]?.url) {
             parsedData = json;
             console.info('[GRSAI] Got result URL');
             break;
           }
           
-          // If succeeded but no results yet, keep trying
-          if (grsaiResponse.status === 'succeeded' && !grsaiResponse.results?.[0]?.url) {
-            console.info('[GRSAI] Succeeded but results pending...');
+          // Track final status for fallback
+          if (grsaiResponse.status === 'succeeded') {
             parsedData = json;
-            break;
           }
           
-          // If failed
+          // If failed, throw immediately
           if (grsaiResponse.status === 'failed') {
             const reason = grsaiResponse.error || grsaiResponse.failure_reason || 'unknown';
             throw new Error(`GRSAI task failed: ${reason}`);
-          }
-          
-          // If still running, keep parsing for final result
-          if (grsaiResponse.status === 'running' || grsaiResponse.progress !== undefined) {
-            // Continue to next line
-            continue;
           }
         } catch {
           continue;
