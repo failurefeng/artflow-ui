@@ -53,15 +53,10 @@ jobs:
 
       - name: Create source archive
         run: |
-          tar -czf source.tar.gz \
-            --exclude=.git \
-            --exclude=node_modules \
-            --exclude=dist \
-            --exclude=android \
-            --exclude=.github \
-            --exclude='*.tar.gz' \
-            --exclude='*.zip' \
-            .
+          find . -maxdepth 1 -type f -not -name 'source.tar.gz' -not -name '*.tar.gz' -not -name '*.zip' -print > files_to_archive.txt
+          find . -maxdepth 1 -type d \( -name '.git' -o -name 'node_modules' -o -name 'dist' -o -name 'android' -o -name '.github' -o -name '.gitignore' -o -name '*.tar.gz' -o -name '*.zip' \) -prune -o -type f -print >> files_to_archive.txt 2>/dev/null
+          tar -czf source.tar.gz -T files_to_archive.txt
+          rm -f files_to_archive.txt
           ls -la source.tar.gz
 
       - name: Create Release
