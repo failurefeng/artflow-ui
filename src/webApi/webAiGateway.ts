@@ -582,27 +582,14 @@ export const webAiGateway: AiGateway = {
         status: 'not_found' as const,
       };
     }
-    return await new Promise<{
+    return new Promise<{
       job_id: string;
       status: 'queued' | 'running' | 'succeeded' | 'failed' | 'not_found';
       result?: string | null;
       error?: string | null;
-    }>((resolve) => {
-      setTimeout(() => {
-        const entry = generationJobStore.get(jobId);
-        if (!entry) {
-          resolve({
-            job_id: jobId,
-            status: 'not_found' as const,
-          });
-        } else {
-          resolve({
-            job_id: jobId,
-            status: 'succeeded' as const,
-            result: null,
-          });
-        }
-      }, 100);
+    }>((resolve, reject) => {
+      job.resolve = resolve;
+      job.reject = reject;
     });
   },
 };
