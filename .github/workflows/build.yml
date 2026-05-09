@@ -59,99 +59,58 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
-      - name: Create Release
-        id: create-release
+      - name: Create Release and Upload Assets
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          RELEASE_TAG="${GITHUB_REF#refs/tags/}"
-          echo "Creating release for tag: $RELEASE_TAG"
-          
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${{ github.repository }}/releases" \
-            -d "{\"tag_name\":\"$RELEASE_TAG\",\"name\":\"Storyboard Copilot v$RELEASE_TAG\",\"body\":\"Build ${{ github.run_number }}\"}")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-          
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $BODY"
-          
-          if [ "$HTTP_CODE" == "422" ]; then
-            echo "Release already exists, getting existing release ID..."
-            EXISTING=$(curl -s -X GET \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE_TAG")
-            RELEASE_ID=$(echo "$EXISTING" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-            echo "Existing release ID: $RELEASE_ID"
-          elif [ "$HTTP_CODE" != "201" ]; then
-            echo "Failed to create release"
-            exit 1
-          else
-            RELEASE_ID=$(echo "$BODY" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-            echo "New release created with ID: $RELEASE_ID"
-          fi
-          
-          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload APK
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          echo "Uploading APK for release: $RELEASE_ID"
-          APK_SIZE=$(stat -c%s ./android/app/build/outputs/apk/debug/app-debug.apk)
-          echo "APK size: $APK_SIZE bytes"
-          
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Content-Type: application/octet-stream" \
-            -H "Accept: application/vnd.github+json" \
-            --data-binary "@./android/app/build/outputs/apk/debug/app-debug.apk" \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=storyboard-copilot.apk")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-          
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $BODY"
-          
-          if [ "$HTTP_CODE" != "201" ]; then
-            echo "Failed to upload APK"
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload source archive
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          echo "Uploading source archive for release: $RELEASE_ID"
-          SOURCE_SIZE=$(stat -c%s ./source.tar.gz)
-          echo "Source size: $SOURCE_SIZE bytes"
-          
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Content-Type: application/gzip" \
-            -H "Accept: application/vnd.github+json" \
-            --data-binary "@./source.tar.gz" \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=source.tar.gz")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-          
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $BODY"
-          
-          if [ "$HTTP_CODE" != "201" ]; then
-            echo "Failed to upload source archive"
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const releaseTag = context.ref.replace('refs/tags/', '');
+            console.log('Creating release for tag:', releaseTag);
+            
+            const apkPath = './android/app/build/outputs/apk/debug/app-debug.apk';
+            const sourcePath = './source.tar.gz';
+            
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: releaseTag,
+              name: `Storyboard Copilot v${releaseTag}`,
+              body: `Build ${context.runNumber}`
+            });
+            
+            console.log('Release created with ID:', release.data.id);
+            console.log('Upload URL:', release.data.upload_url);
+            
+            const apkBuffer = fs.readFileSync(apkPath);
+            const apkUpload = await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: 'storyboard-copilot.apk',
+              data: apkBuffer,
+              headers: {
+                'content-type': 'application/vnd.android.package-archive',
+                'content-length': apkBuffer.length
+              }
+            });
+            console.log('APK uploaded:', apkUpload.data.browser_download_url);
+            
+            const sourceBuffer = fs.readFileSync(sourcePath);
+            const sourceUpload = await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: 'source.tar.gz',
+              data: sourceBuffer,
+              headers: {
+                'content-type': 'application/gzip',
+                'content-length': sourceBuffer.length
+              }
+            });
+            console.log('Source uploaded:', sourceUpload.data.browser_download_url);
 
       - name: Upload artifacts
         if: "!startsWith(github.ref, 'refs/tags/v')"
