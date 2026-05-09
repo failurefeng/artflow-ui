@@ -564,8 +564,33 @@ pub struct ProjectExportRecord {
 
 fn export_projects_json(app: &AppHandle) -> Result<Vec<ProjectExportRecord>, String> {
     let db_path = resolve_db_path(app)?;
+    info!("[Export] DB path: {:?}", db_path);
+
+    if !db_path.exists() {
+        info!("[Export] DB does not exist, returning empty projects");
+        return Ok(Vec::new());
+    }
+
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open projects DB: {}", e))?;
+
+    let table_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !table_exists {
+        info!("[Export] 'projects' table does not exist");
+        return Ok(Vec::new());
+    }
+
+    let project_count: i32 = conn
+        .query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))
+        .unwrap_or(0);
+    info!("[Export] Found {} projects in DB", project_count);
 
     let mut stmt = conn
         .prepare("SELECT id, name, created_at, updated_at, nodes_json, edges_json, viewport_json, history_json FROM projects")

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Download, Upload, Folder, AlertCircle, CheckCircle, Star, FileText } from 'lucide-react';
 import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 const MILESTONE_INFO = {
   version: '1.2.0',
@@ -44,12 +45,12 @@ export function DataManagementPanel() {
       setExportStatus('success');
       
       const parsed = JSON.parse(data);
-      const projectsCount = parsed.projects?.length || 0;
-      setProjectsCount(projectsCount);
+      const projectsCountVal = parsed.projects?.length || 0;
+      setProjectsCount(projectsCountVal);
       
       setMessage({ 
         type: 'success', 
-        text: `已生成导出数据（包含 ${projectsCount} 个项目）。可点击下方按钮下载文件。` 
+        text: `已生成导出数据（包含 ${projectsCountVal} 个项目）。可点击下方按钮下载文件。` 
       });
     } catch (err) {
       setExportStatus('error');
@@ -57,20 +58,40 @@ export function DataManagementPanel() {
     }
   }, []);
 
-  const handleDownloadFile = useCallback(() => {
-    if (!exportedData) return;
+  const handleDownloadFile = useCallback(async () => {
+    if (!exportedData) {
+      setMessage({ type: 'error', text: '没有可下载的数据，请先点击"生成导出数据"' });
+      return;
+    }
     
-    const blob = new Blob([exportedData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    setMessage({ type: 'success', text: '文件已下载！请妥善保管。' });
+    try {
+      const fileName = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      
+      let savedPath: string;
+      try {
+        await Filesystem.writeFile({
+          path: fileName,
+          data: exportedData,
+          directory: Directory.Documents,
+        });
+        savedPath = `Documents/${fileName}`;
+      } catch {
+        const blob = new Blob([exportedData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        savedPath = '浏览器下载';
+      }
+      
+      setMessage({ type: 'success', text: `文件已保存到: ${savedPath}` });
+    } catch (err) {
+      setMessage({ type: 'error', text: `下载失败: ${err}` });
+    }
   }, [exportedData]);
 
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,8 +136,15 @@ export function DataManagementPanel() {
   }, [importText]);
 
   const handleCopyExport = useCallback(() => {
-    navigator.clipboard.writeText(exportedData);
-    setMessage({ type: 'success', text: '已复制到剪贴板' });
+    if (!exportedData) {
+      setMessage({ type: 'error', text: '没有可复制的数据，请先点击"生成导出数据"' });
+      return;
+    }
+    navigator.clipboard.writeText(exportedData).then(() => {
+      setMessage({ type: 'success', text: '已复制到剪贴板' });
+    }).catch(() => {
+      setMessage({ type: 'error', text: '复制失败' });
+    });
   }, [exportedData]);
 
   return (
@@ -206,7 +234,7 @@ export function DataManagementPanel() {
                 onClick={() => { void handleDownloadFile(); }}
                 className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600/80"
               >
-                下载文件
+                保存到手机
               </button>
               <button
                 onClick={() => { void handleCopyExport(); }}
@@ -287,7 +315,7 @@ export function DataManagementPanel() {
       <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
         <h4 className="text-sm font-medium text-blue-400 mb-2">升级指南</h4>
         <ol className="text-xs text-text-muted space-y-1 list-decimal list-inside">
-          <li>在旧版本中点击「下载文件」保存备份</li>
+          <li>在旧版本中点击「保存到手机」保存备份</li>
           <li>卸载旧版本（或覆盖安装新版本）</li>
           <li>安装新版本 APK</li>
           <li>在新版本中点击「选择文件」导入备份</li>

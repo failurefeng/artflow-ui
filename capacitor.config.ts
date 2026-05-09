@@ -18,6 +18,10 @@ const config: CapacitorConfig = {
         backup: true,
       },
     },
+    App: {
+      launchAutoHide: true,
+      backgroundColor: '#111227',
+    },
   },
 };
 

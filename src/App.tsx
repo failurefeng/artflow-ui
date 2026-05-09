@@ -16,6 +16,7 @@ import {
   type SettingsCategory,
 } from './features/settings/settingsEvents';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { AppContextProvider } from './contexts/AppStateContext';
 
 function toRgbCssValue(hexColor: string): string {
   const hex = hexColor.replace('#', '');
@@ -112,35 +113,37 @@ function App() {
 
   return (
     <ReactFlowProvider>
-      <div className="w-full h-full flex flex-col bg-bg-dark">
-        <MobileHeader
-          showBackButton={!!currentProjectId}
-          onBackClick={closeProject}
-          onSettingsClick={() => {
-            setSettingsInitialCategory('general');
-            setShowSettings(true);
-          }}
-        />
+      <AppContextProvider>
+        <div className="w-full h-full flex flex-col bg-bg-dark">
+          <MobileHeader
+            showBackButton={!!currentProjectId}
+            onBackClick={closeProject}
+            onSettingsClick={() => {
+              setSettingsInitialCategory('general');
+              setShowSettings(true);
+            }}
+          />
 
-        <main className="flex-1 relative">
-          {currentProjectId ? <Canvas /> : <ProjectManager />}
-        </main>
+          <main className="flex-1 relative">
+            {currentProjectId ? <Canvas /> : <ProjectManager />}
+          </main>
 
-        <SettingsDialog
-          isOpen={showSettings}
-          onClose={() => setShowSettings(false)}
-          initialCategory={settingsInitialCategory}
-          onCheckUpdate={async () => 'up-to-date'}
-        />
-        <GlobalErrorDialog
-          isOpen={Boolean(globalError)}
-          title={globalError?.title ?? ''}
-          message={globalError?.message ?? ''}
-          details={globalError?.details}
-          copyText={globalError?.copyText}
-          onClose={() => setGlobalError(null)}
-        />
-      </div>
+          <SettingsDialog
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+            initialCategory={settingsInitialCategory}
+            onCheckUpdate={async () => 'up-to-date'}
+          />
+          <GlobalErrorDialog
+            isOpen={Boolean(globalError)}
+            title={globalError?.title ?? ''}
+            message={globalError?.message ?? ''}
+            details={globalError?.details}
+            copyText={globalError?.copyText}
+            onClose={() => setGlobalError(null)}
+          />
+        </div>
+      </AppContextProvider>
     </ReactFlowProvider>
   );
 }

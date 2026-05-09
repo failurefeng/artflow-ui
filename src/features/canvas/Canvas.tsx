@@ -28,6 +28,7 @@ import { useCanvasStore } from '@/stores/canvasStore';
 import { useProjectStore } from '@/stores/projectStore';
 import { getConfiguredApiKeyCount, useSettingsStore } from '@/stores/settingsStore';
 import { canvasAiGateway, canvasEventBus } from '@/features/canvas/application/canvasServices';
+import { useAppContext } from '@/contexts/AppStateContext';
 import {
   CANVAS_NODE_TYPES,
   type CanvasEdge,
@@ -57,6 +58,8 @@ import { ImageViewerModal } from './ui/ImageViewerModal';
 import { MissingApiKeyHint } from '@/features/settings/MissingApiKeyHint';
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
+
+const GENERATION_JOB_POLL_INTERVAL_MS = 1500;
 
 interface PendingConnectStart {
   nodeId: string;
@@ -96,7 +99,6 @@ interface DuplicateResult {
 }
 
 const ALT_DRAG_COPY_Z_INDEX = 2000;
-const GENERATION_JOB_POLL_INTERVAL_MS = 1400;
 
 interface GenerationStoryboardMetadata {
   gridRows: number;
@@ -236,6 +238,7 @@ export function Canvas() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const suppressNextPaneClickRef = useRef(false);
   const suppressNextEdgeClickRef = useRef(false);
+  const appResumeTriggerRef = useRef(0);
 
   const [showNodeMenu, setShowNodeMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -303,6 +306,7 @@ export function Canvas() {
   const configuredApiKeyCount = useSettingsStore((state) =>
     getConfiguredApiKeyCount(state.apiKeys, providerIds)
   );
+  const { onAppResume } = useAppContext();
 
   const getCurrentProject = useProjectStore((state) => state.getCurrentProject);
   const saveCurrentProject = useProjectStore((state) => state.saveCurrentProject);
@@ -541,7 +545,17 @@ export function Canvas() {
         }
       })();
     }
-  }, [apiKeys, nodes, updateNodeData]);
+  }, [apiKeys, nodes, updateNodeData, appResumeTriggerRef]);
+
+  useEffect(() => {
+    const handleAppResume = () => {
+      console.log('[Canvas] App resumed, triggering generation poll');
+      appResumeTriggerRef.current += 1;
+    };
+
+    const unsubscribe = onAppResume(handleAppResume);
+    return unsubscribe;
+  }, [onAppResume]);
 
   useEffect(() => {
     const element = wrapperRef.current;
