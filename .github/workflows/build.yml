@@ -64,14 +64,12 @@ jobs:
         run: |
           RELEASE_TAG="${GITHUB_REF#refs/tags/}"
           echo "Creating release for tag: $RELEASE_TAG"
+          gh release delete "$RELEASE_TAG" --yes 2>/dev/null || true
           gh release create "$RELEASE_TAG" \
             --title "Storyboard Copilot $RELEASE_TAG" \
             --notes "Build ${{ github.run_number }} - ${{ github.sha }}" \
             android/app/build/outputs/apk/debug/app-debug.apk \
-            source.tar.gz \
-            || gh release upload "$RELEASE_TAG" \
-            android/app/build/outputs/apk/debug/app-debug.apk \
-            source.tar.gz --clobber
+            source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
