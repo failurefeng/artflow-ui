@@ -45,9 +45,6 @@ jobs:
         working-directory: ./android
         run: ./gradlew assembleDebug
 
-      - name: Wait 3 minutes for build to stabilize
-        run: sleep 180
-
       - name: Verify APK exists
         id: verify
         run: |
@@ -70,40 +67,46 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
-      - name: Create Release with Tag
-        if: success()
+      - name: Check if tag already exists
+        id: check_tag
         run: |
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          SOURCE_PATH="source.tar.gz"
-
-          if [ ! -f "$APK_PATH" ]; then
-            echo "ERROR: APK not found at $APK_PATH"
-            exit 1
+          TAG_NAME="v${{ github.run_number }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG_NAME already exists, will skip release creation"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG_NAME does not exist, will create new release"
           fi
 
-          if [ ! -f "$SOURCE_PATH" ]; then
-            echo "ERROR: Source archive not found at $SOURCE_PATH"
-            exit 1
-          fi
-
-          echo "Ready to create release!"
-          echo "APK size: $(stat -c%s "$APK_PATH") bytes"
-          echo "Source size: $(stat -c%s "$SOURCE_PATH") bytes"
-
-      - name: Upload to Release
-        if: success()
+      - name: Create Release with Tag
+        if: success() && steps.check_tag.outputs.tag_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.sha }}
+          tag_name: "v${{ github.run_number }}"
           name: "Storyboard Copilot Build ${{ github.run_number }}"
           body: |
             Auto-generated release from commit ${{ github.sha }}
-            
+
             Build #${{ github.run_number }}
-            
+
             APK Size: ${{ env.APK_SIZE }} bytes
           files: |
             android/app/build/outputs/apk/debug/app-debug.apk
             source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to existing Release
+        if: success() && steps.check_tag.outputs.tag_exists == 'true'
+        run: |
+          echo "Tag already exists. Checking for existing release..."
+          TAG_NAME="v${{ github.run_number }}"
+          RELEASE_ID=$(gh release view "$TAG_NAME" --json id --jq .id 2>/dev/null || echo "")
+          if [ -n "$RELEASE_ID" ]; then
+            echo "Uploading assets to existing release $RELEASE_ID..."
+            gh release upload "$TAG_NAME" android/app/build/outputs/apk/debug/app-debug.apk source.tar.gz --clobber
+          else
+            echo "Release not found, creating new one..."
+            gh release create "$TAG_NAME" android/app/build/outputs/apk/debug/app-debug.apk source.tar.gz --title "Storyboard Copilot Build ${{ github.run_number }}"
+          fi
