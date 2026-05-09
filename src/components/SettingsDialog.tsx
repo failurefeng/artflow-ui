@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Eye, EyeOff, FolderOpen, Plus, Trash2 } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { X, Eye, EyeOff, FolderOpen, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -45,6 +45,16 @@ const PROVIDER_GET_KEY_URLS: Record<string, string> = {
   kie: 'https://kie.ai/api-key',
   fal: 'https://fal.ai/dashboard/keys',
 };
+
+const SETTINGS_CATEGORIES = [
+  { id: 'general' as const, labelKey: 'settings.general' },
+  { id: 'providers' as const, labelKey: 'settings.providers' },
+  { id: 'appearance' as const, labelKey: 'settings.appearance' },
+  { id: 'pricing' as const, labelKey: 'settings.pricing' },
+  { id: 'data' as const, labelKey: 'settings.data' },
+  { id: 'experimental' as const, labelKey: 'settings.experimental' },
+  { id: 'about' as const, labelKey: 'settings.about' },
+];
 
 function SettingsCheckboxCard({
   title,
@@ -143,6 +153,8 @@ export function SettingsDialog({
     });
   }, []);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const [appVersion, setAppVersion] = useState<string>('');
   const [localApiKeys, setLocalApiKeys] = useState<Record<string, string>>(apiKeys);
   const [localGrsaiNanoBananaProModel, setLocalGrsaiNanoBananaProModel] = useState(
@@ -246,7 +258,19 @@ export function SettingsDialog({
     }
 
     setActiveCategory(initialCategory);
+    setShowCategoryDropdown(false);
   }, [initialCategory, isOpen]);
+
+  useEffect(() => {
+    if (!showCategoryDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setShowCategoryDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCategoryDropdown]);
 
   const handleSave = useCallback(() => {
     providers.forEach((provider) => {
@@ -385,25 +409,53 @@ export function SettingsDialog({
       />
       <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full max-md:w-full max-md:max-w-full">
         <div
-          className={`relative mx-auto max-h-[90vh] w-[700px] max-md:w-full max-md:h-screen max-md:max-h-screen max-md:rounded-none max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block max-md:touch-pan-y`}
+          className={`relative mx-auto max-h-[90vh] w-[700px] max-md:w-full max-md:h-full max-md:max-h-full max-md:rounded-none max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block`}
         >
-          {/* Mobile close button - top left */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 left-3 p-2 hover:bg-bg-dark rounded-full transition-colors z-20 max-md:block hidden"
-          >
-            <X className="w-6 h-6 text-text-muted" />
-          </button>
+          {/* Mobile Header */}
+          <div className="hidden max-md:flex max-md:items-center max-md:justify-between max-md:px-4 max-md:py-3 max-md:border-b max-md:border-border-dark max-md:bg-bg-dark max-md:relative max-md:z-20">
+            {/* Category Dropdown Trigger */}
+            <div ref={categoryDropdownRef} className="relative">
+              <button
+                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                className="flex items-center gap-2 text-lg font-semibold text-text-dark"
+              >
+                <span>{t(activeCategory)}</span>
+                <ChevronDown className={`w-5 h-5 text-text-muted transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`} />
+              </button>
 
-          {/* Desktop close button - top right */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 p-1 hover:bg-bg-dark rounded transition-colors z-20 max-md:hidden"
-          >
-            <X className="w-5 h-5 text-text-muted" />
-          </button>
+              {/* Category Dropdown Menu */}
+              {showCategoryDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-bg-dark border border-border-dark rounded-lg shadow-lg z-30 overflow-hidden">
+                  {SETTINGS_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setActiveCategory(cat.id);
+                        setShowCategoryDropdown(false);
+                      }}
+                      className={`w-full text-left px-4 py-3 transition-colors ${
+                        activeCategory === cat.id
+                          ? 'bg-accent/10 text-accent'
+                          : 'text-text-muted hover:bg-surface-dark'
+                      }`}
+                    >
+                      {t(cat.labelKey)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          {/* Sidebar - hidden on mobile */}
+            {/* Close Button - Top Right */}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-surface-dark rounded-full transition-colors"
+            >
+              <X className="w-6 h-6 text-text-muted" />
+            </button>
+          </div>
+
+          {/* Desktop Sidebar */}
           <div className="w-[180px] max-md:hidden bg-bg-dark border-r border-border-dark flex flex-col">
             <div className="px-4 py-4">
               <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -412,111 +464,38 @@ export function SettingsDialog({
             </div>
 
             <nav className="flex-1">
-              <button
-                onClick={() => setActiveCategory('general')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'general'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.general')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('providers')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'providers'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.providers')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('appearance')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'appearance'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.appearance')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('pricing')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'pricing'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.pricing')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('experimental')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'experimental'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.experimental')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('about')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'about'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.about')}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('data')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'data'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.data') || '数据'}</span>
-              </button>
+              {SETTINGS_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`
+                    w-full flex items-center gap-3 px-4 py-2.5 text-left
+                    transition-colors
+                    ${activeCategory === cat.id
+                      ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
+                      : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
+                    }
+                  `}
+                >
+                  <span className="text-sm">{t(cat.labelKey)}</span>
+                </button>
+              ))}
             </nav>
           </div>
 
+          {/* Desktop Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 p-1 hover:bg-bg-dark rounded transition-colors z-20 max-md:hidden"
+          >
+            <X className="w-5 h-5 text-text-muted" />
+          </button>
+
           {/* Content */}
-          <div className="flex-1 flex flex-col max-md:flex-1 max-md:pt-12">
+          <div className="flex-1 flex flex-col max-md:flex-1 max-md:overflow-hidden">
             {activeCategory === 'providers' && (
               <>
-                <div className="px-6 py-5 border-b border-border-dark">
+                <div className="px-6 py-5 border-b border-border-dark max-md:px-4 max-md:py-3">
                   <h2 className="text-lg font-semibold text-text-dark">
                     {t('settings.providers')}
                   </h2>
@@ -525,7 +504,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   {providers.map((provider) => {
                     const displayName = i18n.language.startsWith('zh') ? provider.label : provider.name;
                     const isRevealed = Boolean(revealedApiKeys[provider.id]);
@@ -656,7 +635,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <h3 className="text-sm font-medium text-text-dark">
                       {t('settings.radiusPreset')}
@@ -778,7 +757,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <SettingsCheckboxCard
                     checked={localShowNodePrice}
                     onCheckedChange={setLocalShowNodePrice}
@@ -886,7 +865,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <SettingsCheckboxCard
                     checked={localStoryboardGenKeepStyleConsistent}
                     onCheckedChange={setLocalStoryboardGenKeepStyleConsistent}
@@ -999,7 +978,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <SettingsCheckboxCard
                     checked={localEnableStoryboardGenGridPreviewShortcut}
                     onCheckedChange={setLocalEnableStoryboardGenGridPreviewShortcut}
@@ -1044,7 +1023,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <div className="flex items-start gap-4">
                       <img
@@ -1164,7 +1143,7 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6 touch-auto max-md:overflow-y-auto">
+                <div className="flex-1 overflow-y-auto p-6 max-md:p-4 max-md:pb-20">
                   <DataManagementPanel />
                 </div>
 
