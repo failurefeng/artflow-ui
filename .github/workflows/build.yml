@@ -64,48 +64,16 @@ jobs:
         run: |
           RELEASE_TAG="${GITHUB_REF#refs/tags/}"
           echo "Creating release for tag: $RELEASE_TAG"
-
-          BODY=$(cat << 'BODYEOF'
-          ## Download Files
-
-          - **APK**: app-debug.apk
-          - **Source Code**: source.tar.gz
-
-          ## Build Info
-
-          - Build Number: %BUILD_NUM%
-          - Commit: %COMMIT_SHA%
-          BODYEOF
-          )
-          BODY="${BODY//\%BUILD_NUM\%/${{ github.run_number }}}"
-          BODY="${BODY//\%COMMIT_SHA\%/${{ github.sha }}}"
-
-          RESPONSE=$(curl -s -L -X POST \
-            "https://api.github.com/repos/${{ github.repository }}/releases" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"tag_name\": \"$RELEASE_TAG\", \"name\": \"Storyboard Copilot $RELEASE_TAG\", \"body\": $(echo "$BODY" | jq -Rs .), \"draft\": false, \"prerelease\": false}")
-
-          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
-          echo "Created release ID: $RELEASE_ID"
-
-          curl -s -L -X POST \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/vnd.android.package-archive" \
-            --data-binary "@android/app/build/outputs/apk/debug/app-debug.apk" \
-            -H "Content-Length: $(stat -c%s android/app/build/outputs/apk/debug/app-debug.apk)" \
-            | jq -r '.browser_upload_url' || true
-
-          curl -s -L -X POST \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/gzip" \
-            --data-binary "@source.tar.gz" \
-            -H "Content-Length: $(stat -c%s source.tar.gz)" \
-            | jq -r '.browser_upload_url' || true
-
-          echo "Release created successfully!"
+          gh release create "$RELEASE_TAG" \
+            --title "Storyboard Copilot $RELEASE_TAG" \
+            --notes "Build ${{ github.run_number }} - ${{ github.sha }}" \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            source.tar.gz \
+            || gh release upload "$RELEASE_TAG" \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            source.tar.gz --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         if: "!startsWith(github.ref, 'refs/tags/v')"
