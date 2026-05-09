@@ -46,6 +46,15 @@ jobs:
         working-directory: ./android
         run: ./gradlew assembleDebug
 
+      - name: Verify APK exists
+        run: |
+          ls -la android/app/build/outputs/apk/debug/
+          if [ ! -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "ERROR: APK file not found!"
+            exit 1
+          fi
+          echo "APK size: $(du -h android/app/build/outputs/apk/debug/app-debug.apk | cut -f1)"
+
       - name: Create source archive
         run: |
           tar -czvf source.tar.gz \
@@ -57,17 +66,27 @@ jobs:
             --exclude='*.tar.gz' \
             --exclude='*.zip' \
             .
+          echo "Source archive size: $(du -h source.tar.gz | cut -f1)"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Storyboard-Copilot-artifacts
+          name: Storyboard-Copilot-${{ github.run_number }}
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             source.tar.gz
           retention-days: 30
 
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "Creating release for tag: ${{ github.ref }}"
+          echo "APK exists: $(ls -la android/app/build/outputs/apk/debug/app-debug.apk)"
+          echo "Source archive exists: $(ls -la source.tar.gz)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
