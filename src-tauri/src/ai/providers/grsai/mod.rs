@@ -224,7 +224,40 @@ impl GrsaiProvider {
             )));
         }
 
-        response.json::<Value>().await.map_err(AIError::from)
+        let response_text = response.text().await.map_err(AIError::from)?;
+        info!("[GRSAI SSE] Response length: {}", response_text.len());
+
+        let mut final_payload: Option<Value> = None;
+        for line in response_text.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("data: ") {
+                let json_str = &trimmed[6..];
+                match serde_json::from_str::<Value>(json_str) {
+                    Ok(json) => {
+                        info!("[GRSAI SSE] Status: {:?}, Progress: {:?}", 
+                            json.get("status").and_then(|v| v.as_str()),
+                            json.get("progress").and_then(|v| v.as_i64()));
+                        final_payload = Some(json);
+                        if json.get("results").and_then(|r| r.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|first| first.get("url"))
+                            .and_then(|url| url.as_str())
+                            .is_some()
+                        {
+                            break;
+                        }
+                        if json.get("status").and_then(|v| v.as_str()) == Some("succeeded") {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        info!("[GRSAI SSE] Failed to parse line: {}", e);
+                    }
+                }
+            }
+        }
+
+        final_payload.ok_or_else(|| AIError::Provider("GRSAI: failed to parse SSE response".to_string()))
     }
 
     async fn poll_result_once(&self, task_id: &str) -> Result<ProviderTaskPollResult, AIError> {
@@ -254,7 +287,21 @@ impl GrsaiProvider {
             )));
         }
 
-        let poll_response = response.json::<Value>().await?;
+        let response_text = response.text().await?;
+        info!("[GRSAI Poll] Response: {}", &response_text[..response_text.len().min(300)]);
+
+        let mut payload: Option<Value> = None;
+        for line in response_text.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("data: ") {
+                if let Ok(json) = serde_json::from_str::<Value>(&trimmed[6..]) {
+                    payload = Some(json);
+                    break;
+                }
+            }
+        }
+
+        let poll_response = payload.ok_or_else(|| AIError::Provider("GRSAI poll: no valid SSE data".to_string()))?;
         let payload = Self::resolve_task_payload(&poll_response)?;
 
         if let Some(url) = Self::extract_result_url(payload) {
