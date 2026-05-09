@@ -61,10 +61,37 @@ jobs:
             --exclude=.github \
             --exclude='*.tar.gz' \
             --exclude='*.zip' \
-            *
+            .
           ls -la source.tar.gz
 
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          RELEASE_TAG="${GITHUB_REF#refs/tags/}"
+          echo "Creating release for tag: $RELEASE_TAG"
+
+          cat > release_body.txt << 'EOF'
+          ## Download Files
+
+          - **APK**: app-debug.apk
+          - **Source Code**: source.tar.gz
+
+          ## Build Info
+
+          - Build Number: ${{ github.run_number }}
+          - Commit: ${{ github.sha }}
+          EOF
+
+          gh release create "$RELEASE_TAG" \
+            --title "Storyboard Copilot $RELEASE_TAG" \
+            --body-file release_body.txt \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            source.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload artifacts
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/upload-artifact@v4
         with:
           name: Storyboard-Copilot-${{ github.run_number }}
@@ -72,25 +99,3 @@ jobs:
             android/app/build/outputs/apk/debug/app-debug.apk
             source.tar.gz
           retention-days: 30
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          body: |
-            ## Download Files
-
-            - **APK**: `app-debug.apk`
-            - **Source Code**: `source.tar.gz`
-
-            ## Build Info
-
-            - Build Number: ${{ github.run_number }}
-            - Commit: ${{ github.sha }}
-          files: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            source.tar.gz
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
