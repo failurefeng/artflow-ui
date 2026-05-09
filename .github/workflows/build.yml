@@ -63,10 +63,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           RELEASE_TAG="${GITHUB_REF#refs/tags/}"
-          APK_PATH="./android/app/build/outputs/apk/debug/app-debug.apk"
+          echo "Tag: $RELEASE_TAG"
+          echo "Repository: ${{ github.repository }}"
           
-          echo "=== Creating release via GitHub API ==="
-          RELEASE_RESPONSE=$(curl -s -X POST \
+          curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -74,40 +74,41 @@ jobs:
             -d "{
               \"tag_name\": \"$RELEASE_TAG\",
               \"name\": \"Storyboard Copilot v$RELEASE_TAG\",
-              \"body\": \"Build ${{ github.run_number }}\"
-            }")
+              \"body\": \"Build ${{ github.run_number }}\",
+              \"draft\": false,
+              \"prerelease\": false
+            }" > /tmp/release.json
           
-          echo "Release response: $RELEASE_RESPONSE"
-          UPLOAD_URL=$(echo "$RELEASE_RESPONSE" | jq -r '.upload_url' | sed 's/{?name,label}//')
-          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id')
+          RELEASE_ID=$(cat /tmp/release.json | grep -o '"id":[^,]*' | head -1 | grep -o '[0-9]*')
+          echo "Release ID: $RELEASE_ID"
           
-          if [ "$RELEASE_ID" == "null" ] || [ -z "$RELEASE_ID" ]; then
-            echo "Failed to create release"
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Failed to create release. Response:"
+            cat /tmp/release.json
             exit 1
           fi
           
-          echo "Release ID: $RELEASE_ID"
-          echo "Upload URL: $UPLOAD_URL"
+          echo "Upload URL: https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets"
           
           echo "=== Uploading APK ==="
-          APK_UPLOAD=$(curl -s -X POST \
+          curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
             -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary "@$APK_PATH" \
-            "$UPLOAD_URL?name=storyboard-copilot.apk")
-          echo "APK upload response: $APK_UPLOAD"
+            --data-binary "@./android/app/build/outputs/apk/debug/app-debug.apk" \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=storyboard-copilot.apk"
           
+          echo ""
           echo "=== Uploading source archive ==="
-          SOURCE_UPLOAD=$(curl -s -X POST \
+          curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/gzip" \
+            -H "Accept: application/vnd.github+json" \
             --data-binary "@./source.tar.gz" \
-            "$UPLOAD_URL?name=source.tar.gz")
-          echo "Source upload response: $SOURCE_UPLOAD"
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=source.tar.gz"
           
-          echo "=== Release created successfully ==="
+          echo ""
+          echo "=== Done ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
