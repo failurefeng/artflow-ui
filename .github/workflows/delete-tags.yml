@@ -1,0 +1,29 @@
+name: Delete All Tags
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delete-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all tags
+        run: |
+          echo "Fetching all tags..."
+          TAGS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/tags" | jq -r '.[].name')
+          
+          echo "Found tags: $TAGS"
+          
+          for TAG in $TAGS; do
+            echo "Deleting tag $TAG..."
+            curl -s -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$TAG"
+            echo "Deleted tag $TAG"
+          done
+          
+          echo "All tags deleted!"
