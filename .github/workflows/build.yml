@@ -62,17 +62,17 @@ jobs:
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          echo "=== Checking APK ==="
-          ls -la android/app/build/outputs/apk/debug/app-debug.apk
-          echo "=== Checking source archive ==="
-          ls -la source.tar.gz
-          echo "=== Creating release ==="
+          echo "=== APK Info ==="
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+          echo "=== Source Archive Info ==="
+          ls -lh source.tar.gz
+          echo "=== Creating Release ==="
           gh release create "${GITHUB_REF#refs/tags/}" \
             --title "Storyboard Copilot v${GITHUB_REF#refs/tags/}" \
-            --body "Build ${{ github.run_number }} - ${{ github.sha }}" \
-            android/app/build/outputs/apk/debug/app-debug.apk \
-            source.tar.gz
-          echo "=== Release created ==="
+            --body "Build ${{ github.run_number }}" \
+            ./android/app/build/outputs/apk/debug/app-debug.apk \
+            ./source.tar.gz
+          echo "=== Done ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
