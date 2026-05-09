@@ -407,9 +407,9 @@ export function SettingsDialog({
         className={`absolute inset-0 bg-black/90 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
-      <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full max-md:w-full max-md:max-w-full">
+      <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full max-md:w-full max-md:max-w-full max-md:h-screen max-md:overflow-hidden max-md:px-0 max-md:pt-0">
         <div
-          className={`relative mx-auto max-h-[90vh] w-[700px] max-md:w-full max-md:h-full max-md:max-h-full max-md:rounded-none max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block`}
+          className={`relative mx-auto max-h-[90vh] w-[700px] max-md:w-full max-md:h-full max-md:max-h-full max-md:rounded-none max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block max-md:overflow-y-auto max-md:h-auto max-md:overscroll-contain`}
         >
           {/* Mobile Header */}
           <div className="hidden max-md:flex max-md:items-center max-md:justify-between max-md:px-4 max-md:py-3 max-md:border-b max-md:border-border-dark max-md:bg-bg-dark max-md:relative max-md:z-20">
