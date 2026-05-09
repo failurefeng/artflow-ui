@@ -104,10 +104,12 @@ function saveApiKeyToSettings(provider: string, apiKey: string): void {
 
 async function pollGrsaiTask(apiKey: string, taskId: string, _modelProvider: string): Promise<string> {
   const pollEndpoint = 'https://grsai.dakka.com.cn/v1/draw/result';
-  const pollInterval = 2000; // 2 seconds
-  const maxAttempts = 60; // 2 minutes max
+  const pollInterval = 3000; // 3 seconds
+  const maxAttempts = 40; // 2 minutes max
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    console.info(`[GRSAI Poll] Attempt ${attempt + 1}/${maxAttempts}, checking task: ${taskId}`);
+    
     await new Promise(resolve => setTimeout(resolve, pollInterval));
     
     try {
@@ -121,38 +123,49 @@ async function pollGrsaiTask(apiKey: string, taskId: string, _modelProvider: str
       });
       
       if (!response.ok) {
-        console.warn(`[GRSAI Poll] HTTP ${response.status}, attempt ${attempt + 1}/${maxAttempts}`);
+        const errorText = await response.text().catch(() => '');
+        console.warn(`[GRSAI Poll] HTTP ${response.status}: ${errorText.slice(0, 100)}`);
         continue;
       }
       
       const data = await response.json() as Record<string, unknown>;
-      console.info(`[GRSAI Poll] Response:`, JSON.stringify(data).slice(0, 300));
+      console.info(`[GRSAI Poll] Response:`, JSON.stringify(data).slice(0, 500));
       
-      // Check for code error
-      const code = (data as { code?: number }).code;
-      if (code !== undefined && code !== 0) {
-        const msg = (data as { msg?: string }).msg || 'unknown error';
-        throw new Error(`GRSAI Poll error (code ${code}): ${msg}`);
+      const responseData = data as {
+        code?: number;
+        msg?: string;
+        data?: {
+          id?: string;
+          results?: Array<{ url?: string }>;
+          status?: string;
+          error?: string;
+          failure_reason?: string;
+        };
+      };
+      
+      // Check for error code
+      if (responseData.code !== undefined && responseData.code !== 0) {
+        throw new Error(`GRSAI Poll error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
       }
       
       // Check for result
-      const results = (data as { data?: { results?: Array<{ url?: string }> } }).data?.results;
-      if (results && results.length > 0 && results[0].url) {
-        return results[0].url;
+      if (responseData.data?.results?.[0]?.url) {
+        console.info(`[GRSAI Poll] Got result!`);
+        return responseData.data.results[0].url!;
       }
       
-      // Check for status
-      const status = (data as { data?: { status?: string } }).data?.status;
-      if (status === 'failed') {
-        const error = (data as { data?: { error?: string; failure_reason?: string } }).data;
-        const reason = error?.error || error?.failure_reason || 'unknown failure';
+      // Check for failed status
+      if (responseData.data?.status === 'failed') {
+        const reason = responseData.data.error || responseData.data.failure_reason || 'unknown failure';
         throw new Error(`GRSAI task failed: ${reason}`);
       }
       
-      console.info(`[GRSAI Poll] Task still running (attempt ${attempt + 1}/${maxAttempts})`);
+      // Still running, continue polling
+      console.info(`[GRSAI Poll] Task still running (${responseData.data?.status || 'unknown status'})`);
     } catch (err) {
-      console.warn(`[GRSAI Poll] Error:`, err);
-      if (attempt === maxAttempts - 1) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.warn(`[GRSAI Poll] Error: ${errorMessage}`);
+      if (errorMessage.includes('failed') || errorMessage.includes('error')) {
         throw err;
       }
     }
@@ -212,11 +225,11 @@ async function callGenerationAPI(request: {
     body = {
       model: modelName || 'nano-banana-2',
       prompt: request.prompt,
-      aspectRatio: request.aspect_ratio,
-      imageSize: request.size,
+      aspect_ratio: request.aspect_ratio,
+      image_size: request.size,
       urls: normalizedReferenceImages.length > 0 ? normalizedReferenceImages : undefined,
-      webHook: '-1',
-      shutProgress: true,
+      web_hook: '-1',
+      shut_progress: true,
     };
   } else {
     throw new Error(`不支持的模型提供商: ${modelProvider}`);
@@ -320,28 +333,33 @@ async function callGenerationAPI(request: {
       imageResult = await fetchImageAsBase64(imageResult);
     }
   } else if (modelProvider === 'grsai') {
-    // GRSAI uses async API - may return task ID or direct result
-    const code = (data as { code?: number }).code;
-    if (code !== undefined && code !== 0) {
-      const msg = (data as { msg?: string }).msg || 'unknown error';
-      throw new Error(`GRSAI API error (code ${code}): ${msg}`);
+    // GRSAI API response format: { code, msg, data: { id, results: [{url}], status? } }
+    const responseData = data as {
+      code?: number;
+      msg?: string;
+      data?: {
+        id?: string;
+        results?: Array<{ url?: string }>;
+        status?: string;
+        error?: string;
+        failure_reason?: string;
+      };
+    };
+    
+    // Check for error code
+    if (responseData.code !== undefined && responseData.code !== 0) {
+      throw new Error(`GRSAI API error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
     }
     
-    // Check for direct result first
-    const results = (data as { data?: { results?: Array<{ url?: string }> } }).data?.results;
-    if (results && results.length > 0 && results[0].url) {
-      imageResult = results[0].url;
-    }
-    
-    // If no direct result, need to poll for task result
-    if (!imageResult) {
-      const taskId = (data as { data?: { id?: string } }).data?.id;
-      if (!taskId) {
-        throw new Error('GRSAI response missing task ID and no direct result');
-      }
-      
-      // Poll for result
-      imageResult = await pollGrsaiTask(apiKey, taskId, modelProvider);
+    // Check for direct result
+    if (responseData.data?.results?.[0]?.url) {
+      imageResult = responseData.data.results[0].url;
+    } else if (responseData.data?.id) {
+      // Need to poll for result
+      imageResult = await pollGrsaiTask(apiKey, responseData.data.id, modelProvider);
+    } else if (responseData.data?.status === 'failed') {
+      const reason = responseData.data.error || responseData.data.failure_reason || 'unknown';
+      throw new Error(`GRSAI task failed: ${reason}`);
     }
     
     if (imageResult && imageResult.startsWith('http')) {
