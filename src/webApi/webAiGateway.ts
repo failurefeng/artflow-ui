@@ -54,7 +54,11 @@ function getApiKeyFromSettings(modelProvider: string): string | null {
     const settingsStr = localStorage.getItem('storyboard_settings');
     if (settingsStr) {
       const settings = JSON.parse(settingsStr);
-      return settings.apiKeys?.[modelProvider] || null;
+      let apiKey = settings.apiKeys?.[modelProvider] || null;
+      if (apiKey) {
+        apiKey = sanitizeForHeader(apiKey);
+      }
+      return apiKey;
     }
   } catch {
     // ignore
@@ -64,7 +68,11 @@ function getApiKeyFromSettings(modelProvider: string): string | null {
     const legacyKeys = localStorage.getItem('storyboard_api_keys');
     if (legacyKeys) {
       const parsed = JSON.parse(legacyKeys);
-      return parsed[modelProvider] || null;
+      let apiKey = parsed[modelProvider] || null;
+      if (apiKey) {
+        apiKey = sanitizeForHeader(apiKey);
+      }
+      return apiKey;
     }
   } catch {
     // ignore
@@ -73,7 +81,30 @@ function getApiKeyFromSettings(modelProvider: string): string | null {
   return null;
 }
 
+function isValidAsciiString(str: string): boolean {
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code > 127) {
+      console.warn(`[WebAI] Invalid character (code ${code}) found in string at position ${i}`);
+      return false;
+    }
+  }
+  return true;
+}
+
+function sanitizeForHeader(str: string): string {
+  if (!str || typeof str !== 'string') {
+    return '';
+  }
+  return str.replace(/[\x00-\x1F\x7F-\xFF]/g, '');
+}
+
 function saveApiKeyToSettings(provider: string, apiKey: string): void {
+  if (!isValidAsciiString(apiKey)) {
+    console.error('[WebAI] API key contains invalid characters, cannot save');
+    throw new Error('API Key 包含无效字符，请重新输入');
+  }
+
   try {
     let settings: Record<string, unknown> = {};
     const settingsStr = localStorage.getItem('storyboard_settings');
