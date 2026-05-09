@@ -535,35 +535,44 @@ export const webAiGateway: AiGateway = {
     const normalizedReferenceImages = await normalizeReferenceImages(payload);
     const jobId = generateJobId();
 
-    try {
-      const result = await callGenerationAPI({
-        prompt: payload.prompt,
-        model: payload.model,
-        size: payload.size,
-        aspect_ratio: payload.aspectRatio,
-        reference_images: normalizedReferenceImages,
-        extra_params: payload.extraParams,
-      });
+    const pendingJob: {
+      jobId: string;
+      resolve: (result: { job_id: string; status: 'queued' | 'running' | 'succeeded' | 'failed' | 'not_found'; result?: string | null; error?: string | null }) => void;
+      reject: (error: Error) => void;
+    } = {
+      jobId,
+      resolve: () => {},
+      reject: () => {},
+    };
 
-      const jobEntry = generationJobStore.get(jobId);
-      if (jobEntry) {
-        jobEntry.resolve({
+    generationJobStore.set(jobId, pendingJob);
+
+    callGenerationAPI({
+      prompt: payload.prompt,
+      model: payload.model,
+      size: payload.size,
+      aspect_ratio: payload.aspectRatio,
+      reference_images: normalizedReferenceImages,
+      extra_params: payload.extraParams,
+    }).then((result) => {
+      const entry = generationJobStore.get(jobId);
+      if (entry) {
+        entry.resolve({
           job_id: jobId,
           status: 'succeeded',
           result,
         });
         generationJobStore.delete(jobId);
       }
-
-      return jobId;
-    } catch (error) {
-      const jobEntry = generationJobStore.get(jobId);
-      if (jobEntry) {
-        jobEntry.reject(error instanceof Error ? error : new Error(String(error)));
+    }).catch((error) => {
+      const entry = generationJobStore.get(jobId);
+      if (entry) {
+        entry.reject(error instanceof Error ? error : new Error(String(error)));
         generationJobStore.delete(jobId);
       }
-      throw error;
-    }
+    });
+
+    return jobId;
   },
   getGenerateImageJob: async (jobId: string) => {
     const job = generationJobStore.get(jobId);
