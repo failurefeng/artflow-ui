@@ -3,8 +3,6 @@ name: Build Android APK
 on:
   push:
     branches: [main]
-    tags:
-      - 'v*'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -62,33 +60,50 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
-      - name: Create Release and Upload Assets
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create Release with Tag
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const path = require('path');
-            
-            const releaseTag = context.ref.replace('refs/tags/', '');
-            const releaseVersion = 'v0.0.0';
-            console.log('Creating release for tag:', releaseVersion);
-            
-            const apkPath = './android/app/build/outputs/apk/debug/app-debug.apk';
-            const sourcePath = './source.tar.gz';
-            
+            const crypto = require('crypto');
+
+            const commitSha = process.env.GITHUB_SHA.slice(0, 7);
+            const runNumber = process.env.GITHUB_RUN_NUMBER;
+            const tagName = `v0.0.0-${commitSha}`;
+            const releaseName = `Storyboard Copilot v0.0.0 (Build ${runNumber})`;
+            const body = `Auto-generated release from commit ${commitSha}\nBuild #${runNumber}`;
+
+            console.log('Creating tag:', tagName);
+            console.log('Creating release:', releaseName);
+
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/tags/${tagName}`,
+                sha: context.sha
+              });
+              console.log('Tag created successfully');
+            } catch (err) {
+              if (err.status === 422) {
+                console.log('Tag already exists, skipping tag creation');
+              } else {
+                throw err;
+              }
+            }
+
             const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: releaseVersion,
-              name: `Storyboard Copilot ${releaseVersion}`,
-              body: `Build ${context.runNumber}`
+              tag_name: tagName,
+              name: releaseName,
+              body: body,
+              draft: false,
+              prerelease: false
             });
-            
             console.log('Release created with ID:', release.data.id);
-            console.log('Upload URL:', release.data.upload_url);
-            
-            const apkBuffer = fs.readFileSync(apkPath);
+
+            const apkBuffer = fs.readFileSync('./android/app/build/outputs/apk/debug/app-debug.apk');
             const apkUpload = await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -101,8 +116,8 @@ jobs:
               }
             });
             console.log('APK uploaded:', apkUpload.data.browser_download_url);
-            
-            const sourceBuffer = fs.readFileSync(sourcePath);
+
+            const sourceBuffer = fs.readFileSync('./source.tar.gz');
             const sourceUpload = await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -115,13 +130,4 @@ jobs:
               }
             });
             console.log('Source uploaded:', sourceUpload.data.browser_download_url);
-
-      - name: Upload artifacts
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: actions/upload-artifact@v4
-        with:
-          name: Storyboard-Copilot-${{ github.run_number }}
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            source.tar.gz
-          retention-days: 30
+            console.log('=== Release created successfully ===');
