@@ -544,9 +544,82 @@ pub async fn list_models() -> Result<Vec<String>, String> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExportData {
     pub version: String,
-    pub api_keys: HashMap<String, String>,
+    pub app_keys: HashMap<String, String>,
     pub settings: HashMap<String, Value>,
+    pub projects: Vec<ProjectExportRecord>,
     pub exported_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProjectExportRecord {
+    pub id: String,
+    pub name: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub nodes_json: String,
+    pub edges_json: String,
+    pub viewport_json: String,
+    pub history_json: String,
+}
+
+fn export_projects_json(app: &AppHandle) -> Result<Vec<ProjectExportRecord>, String> {
+    let db_path = resolve_db_path(app)?;
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open projects DB: {}", e))?;
+
+    let mut stmt = conn
+        .prepare("SELECT id, name, created_at, updated_at, nodes_json, edges_json, viewport_json, history_json FROM projects")
+        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+
+    let projects = stmt
+        .query_map([], |row| {
+            Ok(ProjectExportRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+                nodes_json: row.get(4)?,
+                edges_json: row.get(5)?,
+                viewport_json: row.get(6)?,
+                history_json: row.get(7)?,
+            })
+        })
+        .map_err(|e| format!("Failed to query projects: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(projects)
+}
+
+fn import_projects_json(app: &AppHandle, projects: Vec<ProjectExportRecord>) -> Result<usize, String> {
+    let db_path = resolve_db_path(app)?;
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open projects DB: {}", e))?;
+
+    let mut imported = 0;
+    for project in projects {
+        conn.execute(
+            r#"
+            INSERT OR REPLACE INTO projects (id, name, created_at, updated_at, nodes_json, edges_json, viewport_json, history_json, node_count)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+            params![
+                project.id,
+                project.name,
+                project.created_at,
+                project.updated_at,
+                project.nodes_json,
+                project.edges_json,
+                project.viewport_json,
+                project.history_json,
+                0
+            ],
+        )
+        .map_err(|e| format!("Failed to import project {}: {}", project.id, e))?;
+        imported += 1;
+    }
+
+    Ok(imported)
 }
 
 #[tauri::command]
@@ -562,9 +635,10 @@ pub async fn export_data(app: AppHandle) -> Result<String, String> {
     let api_keys_path = app_data_dir.join("api_keys.json");
 
     let mut export_data = ExportData {
-        version: "1.0".to_string(),
-        api_keys: HashMap::new(),
+        version: "2.0".to_string(),
+        app_keys: HashMap::new(),
         settings: HashMap::new(),
+        projects: Vec::new(),
         exported_at: now_ms(),
     };
 
@@ -579,29 +653,32 @@ pub async fn export_data(app: AppHandle) -> Result<String, String> {
     if api_keys_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&api_keys_path) {
             if let Ok(api_keys) = serde_json::from_str::<HashMap<String, String>>(&content) {
-                export_data.api_keys = api_keys;
+                export_data.app_keys = api_keys;
             }
         }
     }
 
+    export_data.projects = export_projects_json(&app)?;
+
     let json = serde_json::to_string_pretty(&export_data)
         .map_err(|e| format!("Failed to serialize export data: {}", e))?;
 
-    info!("Exported {} API keys and {} settings",
-        export_data.api_keys.len(),
-        export_data.settings.len());
+    info!("Exported {} API keys, {} settings, {} projects",
+        export_data.app_keys.len(),
+        export_data.settings.len(),
+        export_data.projects.len());
 
     Ok(json)
 }
 
 #[tauri::command]
-pub async fn import_data(app: AppHandle, data: String) -> Result<(), String> {
+pub async fn import_data(app: AppHandle, data: String) -> Result<usize, String> {
     info!("Importing user data...");
 
     let export_data: ExportData = serde_json::from_str(&data)
         .map_err(|e| format!("Failed to parse import data: {}", e))?;
 
-    if export_data.version != "1.0" {
+    if export_data.version != "2.0" && export_data.version != "1.0" {
         return Err(format!("Unsupported export version: {}", export_data.version));
     }
 
@@ -613,13 +690,13 @@ pub async fn import_data(app: AppHandle, data: String) -> Result<(), String> {
     std::fs::create_dir_all(&app_data_dir)
         .map_err(|e| format!("Failed to create app data dir: {}", e))?;
 
-    if !export_data.api_keys.is_empty() {
+    if !export_data.app_keys.is_empty() {
         let api_keys_path = app_data_dir.join("api_keys.json");
-        let json = serde_json::to_string_pretty(&export_data.api_keys)
+        let json = serde_json::to_string_pretty(&export_data.app_keys)
             .map_err(|e| format!("Failed to serialize API keys: {}", e))?;
         std::fs::write(&api_keys_path, json)
             .map_err(|e| format!("Failed to write API keys: {}", e))?;
-        info!("Imported {} API keys", export_data.api_keys.len());
+        info!("Imported {} API keys", export_data.app_keys.len());
     }
 
     if !export_data.settings.is_empty() {
@@ -631,7 +708,14 @@ pub async fn import_data(app: AppHandle, data: String) -> Result<(), String> {
         info!("Imported {} settings", export_data.settings.len());
     }
 
-    Ok(())
+    let mut total_imported = 0;
+    if !export_data.projects.is_empty() {
+        let imported = import_projects_json(&app, export_data.projects)?;
+        total_imported += imported;
+        info!("Imported {} projects", imported);
+    }
+
+    Ok(total_imported)
 }
 
 #[derive(Debug, Serialize)]

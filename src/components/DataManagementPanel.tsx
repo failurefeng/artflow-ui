@@ -1,14 +1,27 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Download, Upload, Folder, AlertCircle, CheckCircle } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Download, Upload, Folder, AlertCircle, CheckCircle, Star, FileText } from 'lucide-react';
 import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai';
+
+const MILESTONE_INFO = {
+  version: '1.2.0',
+  name: '首个可用的 AI 生图版本',
+  date: '2026-05-09',
+  highlights: [
+    'GRSAI AI 生图功能完全修复',
+    '支持 nano-banana-2 和 nano-banana-pro 模型',
+    'Rust 后端正确解析 SSE 流响应',
+  ],
+};
 
 export function DataManagementPanel() {
   const [dataPath, setDataPath] = useState<DataPathInfo | null>(null);
-  const [exportStatus, setExportStatus] = useState<'' | 'loading' | 'success' | 'error'>('loading');
-  const [importStatus, setImportStatus] = useState<'' | 'loading' | 'success' | 'error'>('loading');
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [exportedData, setExportedData] = useState<string>('');
   const [importText, setImportText] = useState<string>('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [projectsCount, setProjectsCount] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadDataPath = async () => {
@@ -29,24 +42,72 @@ export function DataManagementPanel() {
       const data = await exportData();
       setExportedData(data);
       setExportStatus('success');
-      setMessage({ type: 'success', text: '数据已导出，请复制下方 JSON 内容保存' });
+      
+      const parsed = JSON.parse(data);
+      const projectsCount = parsed.projects?.length || 0;
+      setProjectsCount(projectsCount);
+      
+      setMessage({ 
+        type: 'success', 
+        text: `已生成导出数据（包含 ${projectsCount} 个项目）。可点击下方按钮下载文件。` 
+      });
     } catch (err) {
       setExportStatus('error');
       setMessage({ type: 'error', text: `导出失败: ${err}` });
     }
   }, []);
 
+  const handleDownloadFile = useCallback(() => {
+    if (!exportedData) return;
+    
+    const blob = new Blob([exportedData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setMessage({ type: 'success', text: '文件已下载！请妥善保管。' });
+  }, [exportedData]);
+
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setImportText(content);
+      setMessage({ type: 'success', text: `已读取文件: ${file.name}，点击下方"导入数据"按钮完成导入` });
+    };
+    reader.onerror = () => {
+      setMessage({ type: 'error', text: '读取文件失败' });
+    };
+    reader.readAsText(file);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
   const handleImport = useCallback(async () => {
     if (!importText.trim()) {
-      setMessage({ type: 'error', text: '请先粘贴导出的 JSON 数据' });
+      setMessage({ type: 'error', text: '请先选择文件或粘贴 JSON 数据' });
       return;
     }
     setImportStatus('loading');
     setMessage(null);
     try {
-      await importData(importText);
+      const result = await importData(importText);
       setImportStatus('success');
-      setMessage({ type: 'success', text: '数据导入成功！请重启应用使更改生效' });
+      setMessage({ 
+        type: 'success', 
+        text: `数据导入成功！${result.projects_imported > 0 ? `导入了 ${result.projects_imported} 个项目。` : ''}请重启应用使更改生效。` 
+      });
+      setImportText('');
     } catch (err) {
       setImportStatus('error');
       setMessage({ type: 'error', text: `导入失败: ${err}` });
@@ -60,6 +121,29 @@ export function DataManagementPanel() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Star className="w-5 h-5 text-amber-400" />
+          <h3 className="text-sm font-medium text-amber-400">{MILESTONE_INFO.name}</h3>
+        </div>
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-2 text-text-muted">
+            <span>版本:</span>
+            <span className="text-amber-400 font-mono">v{MILESTONE_INFO.version}</span>
+            <span>•</span>
+            <span>{MILESTONE_INFO.date}</span>
+          </div>
+          <ul className="space-y-1 text-text-muted">
+            {MILESTONE_INFO.highlights.map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
         <div className="flex items-center gap-2 mb-3">
           <Folder className="w-5 h-5 text-text-muted" />
@@ -75,10 +159,6 @@ export function DataManagementPanel() {
               <span className="text-text-muted shrink-0">数据库:</span>
               <span className="text-text-dark break-all">{dataPath.db_path}</span>
             </div>
-            <div className="flex items-start gap-2">
-              <span className="text-text-muted shrink-0">API配置:</span>
-              <span className="text-text-dark break-all">{dataPath.settings_path}</span>
-            </div>
             <div className="mt-2 flex items-center gap-2">
               <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${
                 dataPath.is_external
@@ -93,7 +173,7 @@ export function DataManagementPanel() {
                 ) : (
                   <>
                     <AlertCircle className="w-3 h-3" />
-                    内部存储（卸载后丢失）
+                    内部存储（卸载后丢失，建议导出备份）
                   </>
                 )}
               </span>
@@ -110,31 +190,37 @@ export function DataManagementPanel() {
           <h3 className="text-sm font-medium text-text-dark">导出数据</h3>
         </div>
         <p className="text-xs text-text-muted mb-4">
-          导出您的 API 配置和设置。导入时会合并到现有数据中。
+          导出您的 API 配置、设置和所有项目数据。安装新版本后可通过导入功能恢复。
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => { void handleExport(); }}
             disabled={exportStatus === 'loading'}
             className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
-            {exportStatus === 'loading' ? '导出中...' : '导出数据'}
+            {exportStatus === 'loading' ? '导出中...' : '生成导出数据'}
           </button>
           {exportedData && (
-            <button
-              onClick={() => { void handleCopyExport(); }}
-              className="rounded border border-border-dark px-4 py-2 text-sm text-text-dark transition-colors hover:bg-surface-dark"
-            >
-              复制
-            </button>
+            <>
+              <button
+                onClick={() => { void handleDownloadFile(); }}
+                className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600/80"
+              >
+                下载文件
+              </button>
+              <button
+                onClick={() => { void handleCopyExport(); }}
+                className="rounded border border-border-dark px-4 py-2 text-sm text-text-dark transition-colors hover:bg-surface-dark"
+              >
+                复制内容
+              </button>
+            </>
           )}
         </div>
-        {exportedData && (
-          <textarea
-            value={exportedData}
-            readOnly
-            className="mt-3 w-full h-40 rounded border border-border-dark bg-surface-dark p-2 text-xs font-mono text-text-dark resize-none"
-          />
+        {projectsCount !== null && (
+          <p className="text-xs text-text-muted mt-2">
+            包含 {projectsCount} 个项目{projectsCount > 0 ? '，建议下载文件保存' : ''}
+          </p>
         )}
       </div>
 
@@ -144,33 +230,53 @@ export function DataManagementPanel() {
           <h3 className="text-sm font-medium text-text-dark">导入数据</h3>
         </div>
         <p className="text-xs text-text-muted mb-4">
-          粘贴之前导出的 JSON 数据。注意：导入会覆盖同名设置。
+          从之前导出的备份文件恢复数据。支持 .json 文件。
         </p>
-        <textarea
-          value={importText}
-          onChange={(e) => { setImportText(e.target.value); }}
-          placeholder="粘贴导出的 JSON 数据..."
-          className="mb-3 w-full h-40 rounded border border-border-dark bg-surface-dark p-2 text-xs font-mono text-text-dark placeholder:text-text-muted/50 resize-none"
+        
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileSelect}
+          className="hidden"
         />
-        <button
-          onClick={() => { void handleImport(); }}
-          disabled={importStatus === 'loading' || !importText.trim()}
-          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
-        >
-          {importStatus === 'loading' ? '导入中...' : '导入数据'}
-        </button>
+        
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => { fileInputRef.current?.click(); }}
+            className="rounded bg-surface-dark border border-border-dark px-4 py-2 text-sm text-text-dark transition-colors hover:bg-border-dark"
+          >
+            选择文件
+          </button>
+          <button
+            onClick={() => { void handleImport(); }}
+            disabled={importStatus === 'loading' || !importText.trim()}
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+          >
+            {importStatus === 'loading' ? '导入中...' : '导入数据'}
+          </button>
+        </div>
+        
+        {importText && (
+          <div className="mt-3">
+            <p className="text-xs text-green-400 mb-2 flex items-center gap-1">
+              <FileText className="w-3 h-3" />
+              已选择数据，点击导入按钮开始
+            </p>
+          </div>
+        )}
       </div>
 
       {message && (
-        <div className={`rounded-lg border p-4 flex items-center gap-2 ${
+        <div className={`rounded-lg border p-4 flex items-start gap-3 ${
           message.type === 'success'
             ? 'border-green-500/50 bg-green-500/10'
             : 'border-red-500/50 bg-red-500/10'
         }`}>
           {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+            <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
           ) : (
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           )}
           <p className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
             {message.text}
@@ -178,12 +284,15 @@ export function DataManagementPanel() {
         </div>
       )}
 
-      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
-        <h4 className="text-sm font-medium text-yellow-400 mb-2">升级前请务必备份</h4>
-        <p className="text-xs text-text-muted">
-          在安装新版本前，建议先导出您的数据。如果使用外部存储目录，您可以直接访问该目录备份文件。
-          不同设备间迁移时，请使用导出/导入功能。
-        </p>
+      <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
+        <h4 className="text-sm font-medium text-blue-400 mb-2">升级指南</h4>
+        <ol className="text-xs text-text-muted space-y-1 list-decimal list-inside">
+          <li>在旧版本中点击「下载文件」保存备份</li>
+          <li>卸载旧版本（或覆盖安装新版本）</li>
+          <li>安装新版本 APK</li>
+          <li>在新版本中点击「选择文件」导入备份</li>
+          <li>重启应用完成恢复</li>
+        </ol>
       </div>
     </div>
   );

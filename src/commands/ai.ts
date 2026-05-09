@@ -264,25 +264,39 @@ export async function exportData(): Promise<string> {
   } else {
     const settings = localStorage.getItem('storyboard_settings') || '{}';
     const apiKeys = localStorage.getItem('storyboard_api_keys') || '{}';
+    const projects = localStorage.getItem('storyboard_projects') || '[]';
     return JSON.stringify({
-      version: '1.0',
+      version: '2.0',
+      app_keys: JSON.parse(apiKeys),
       settings: JSON.parse(settings),
-      api_keys: JSON.parse(apiKeys),
+      projects: JSON.parse(projects),
       exported_at: Date.now(),
     }, null, 2);
   }
 }
 
-export async function importData(data: string): Promise<void> {
+export interface ImportResult {
+  projects_imported: number;
+}
+
+export async function importData(data: string): Promise<ImportResult> {
   if (isTauri()) {
-    await invoke('import_data', { data });
+    const count = await invoke<number>('import_data', { data });
+    return { projects_imported: count };
   } else {
     const parsed = JSON.parse(data);
+    let projectsImported = 0;
     if (parsed.settings) {
       localStorage.setItem('storyboard_settings', JSON.stringify(parsed.settings));
     }
-    if (parsed.api_keys) {
-      localStorage.setItem('storyboard_api_keys', JSON.stringify(parsed.api_keys));
+    if (parsed.app_keys || parsed.api_keys) {
+      const keys = parsed.app_keys || parsed.api_keys;
+      localStorage.setItem('storyboard_api_keys', JSON.stringify(keys));
     }
+    if (parsed.projects) {
+      localStorage.setItem('storyboard_projects', JSON.stringify(parsed.projects));
+      projectsImported = parsed.projects.length || 0;
+    }
+    return { projects_imported: projectsImported };
   }
 }
