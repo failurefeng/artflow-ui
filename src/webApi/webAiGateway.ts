@@ -225,11 +225,11 @@ async function callGenerationAPI(request: {
     body = {
       model: modelName || 'nano-banana-2',
       prompt: request.prompt,
-      aspect_ratio: request.aspect_ratio,
+      aspect_ratio: request.aspect_ratio === 'auto' ? '1:1' : request.aspect_ratio,
       image_size: request.size,
       urls: normalizedReferenceImages.length > 0 ? normalizedReferenceImages : undefined,
       web_hook: '-1',
-      shut_progress: true,
+      shut_progress: false,
     };
   } else {
     throw new Error(`不支持的模型提供商: ${modelProvider}`);
@@ -299,6 +299,77 @@ async function callGenerationAPI(request: {
     return `opaque:${Date.now()}`;
   }
 
+  // For GRSAI, handle SSE stream response separately
+  if (modelProvider === 'grsai') {
+    let responseText: string;
+    try {
+      responseText = await response.text();
+    } catch {
+      throw new Error(`API 返回格式错误: Unable to read response`);
+    }
+    
+    console.info('[GRSAI] Raw response:', responseText.slice(0, 500));
+    
+    let parsedData: Record<string, unknown> | null = null;
+    const lines = responseText.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          parsedData = JSON.parse(line.slice(6));
+          break;
+        } catch {
+          continue;
+        }
+      }
+    }
+    
+    if (!parsedData) {
+      try {
+        parsedData = JSON.parse(responseText);
+      } catch {
+        throw new Error(`API 返回格式错误: Unable to parse response`);
+      }
+    }
+    
+    const data = parsedData;
+    console.info('[GRSAI] Parsed data:', JSON.stringify(data).slice(0, 500));
+    
+    const responseData = data as {
+      code?: number;
+      msg?: string;
+      data?: {
+        id?: string;
+        results?: Array<{ url?: string }>;
+        status?: string;
+        error?: string;
+        failure_reason?: string;
+      };
+    };
+    
+    if (responseData.code !== undefined && responseData.code !== 0) {
+      throw new Error(`GRSAI API error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
+    }
+    
+    let grsaiResult: string | null = null;
+    
+    if (responseData.data?.results?.[0]?.url) {
+      grsaiResult = responseData.data.results[0].url;
+    } else if (responseData.data?.id) {
+      grsaiResult = await pollGrsaiTask(apiKey, responseData.data.id, modelProvider);
+    } else if (responseData.data?.status === 'failed') {
+      const reason = responseData.data.error || responseData.data.failure_reason || 'unknown';
+      throw new Error(`GRSAI task failed: ${reason}`);
+    } else {
+      throw new Error(`GRSAI response missing task ID and result`);
+    }
+    
+    if (grsaiResult && grsaiResult.startsWith('http')) {
+      grsaiResult = await fetchImageAsBase64(grsaiResult);
+    }
+    
+    return grsaiResult;
+  }
+  
   let data: Record<string, unknown>;
   try {
     data = await response.json();
@@ -329,39 +400,6 @@ async function callGenerationAPI(request: {
     imageResult = (data.images as Array<{url?: string}>)?.find(d => d.url)?.url
       ?? (data.image as {url?: string} | null)?.url
       ?? (data.url as string | null);
-    if (imageResult && imageResult.startsWith('http')) {
-      imageResult = await fetchImageAsBase64(imageResult);
-    }
-  } else if (modelProvider === 'grsai') {
-    // GRSAI API response format: { code, msg, data: { id, results: [{url}], status? } }
-    const responseData = data as {
-      code?: number;
-      msg?: string;
-      data?: {
-        id?: string;
-        results?: Array<{ url?: string }>;
-        status?: string;
-        error?: string;
-        failure_reason?: string;
-      };
-    };
-    
-    // Check for error code
-    if (responseData.code !== undefined && responseData.code !== 0) {
-      throw new Error(`GRSAI API error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
-    }
-    
-    // Check for direct result
-    if (responseData.data?.results?.[0]?.url) {
-      imageResult = responseData.data.results[0].url;
-    } else if (responseData.data?.id) {
-      // Need to poll for result
-      imageResult = await pollGrsaiTask(apiKey, responseData.data.id, modelProvider);
-    } else if (responseData.data?.status === 'failed') {
-      const reason = responseData.data.error || responseData.data.failure_reason || 'unknown';
-      throw new Error(`GRSAI task failed: ${reason}`);
-    }
-    
     if (imageResult && imageResult.startsWith('http')) {
       imageResult = await fetchImageAsBase64(imageResult);
     }
