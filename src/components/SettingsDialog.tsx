@@ -15,6 +15,7 @@ import { listModelProviders } from '@/features/canvas/models';
 import { GRSAI_NANO_BANANA_PRO_MODEL_OPTIONS } from '@/features/canvas/models/providers/grsai';
 import { GRSAI_CREDIT_TIERS } from '@/features/canvas/pricing/types';
 import providerGuideMarkdown from '../../docs/settings/provider-guide.md?raw';
+import { DataManagementPanel } from '@/components/DataManagementPanel';
 import type { SettingsCategory } from '@/features/settings/settingsEvents';
 
 interface SettingsDialogProps {
@@ -485,6 +486,20 @@ export function SettingsDialog({
               `}
               >
                 <span className="text-sm">{t('settings.about')}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveCategory('data')}
+                className={`
+                w-full flex items-center gap-3 px-4 py-2.5 text-left
+                transition-colors
+                ${activeCategory === 'data'
+                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
+                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
+                  }
+              `}
+              >
+                <span className="text-sm">{t('settings.data') || '数据管理'}</span>
               </button>
             </nav>
           </div>
@@ -1124,6 +1139,34 @@ export function SettingsDialog({
                       className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/80"
                     >
                       {t('common.save')}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeCategory === 'data' && (
+              <>
+                <div className="px-6 py-5 border-b border-border-dark">
+                  <h2 className="text-lg font-semibold text-text-dark">
+                    {t('settings.data') || '数据管理'}
+                  </h2>
+                  <p className="text-sm text-text-muted mt-1">
+                    {t('settings.dataDesc') || '导出和导入您的配置和项目数据'}
+                  </p>
+                </div>
+
+                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+                  <DataManagementPanel />
+                </div>
+
+                <div className="flex justify-end border-t border-border-dark px-6 py-4">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={onClose}
+                      className="rounded border border-border-dark px-4 py-2 text-sm font-medium text-text-dark transition-colors hover:bg-bg-dark"
+                    >
+                      {t('common.close')}
                     </button>
                   </div>
                 </div>

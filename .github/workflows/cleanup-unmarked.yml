@@ -1,0 +1,118 @@
+name: Cleanup Unmarked Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "delete" to confirm deletion'
+        required: true
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'delete'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get marked tags
+        id: marked
+        run: |
+          # 查找所有 "⭐ 值得留存" 的 release
+          echo "=== Marked versions (will be kept) ==="
+          # 这些是正式版本，会保留
+          echo "v1.0.0"
+          echo "v1.1.0"
+          echo "v2.0.0"
+          # 从 git tag 中获取所有版本
+          echo ""
+          echo "=== All tags ==="
+          git tag -l 'v*' | while read tag; do echo "Tag: $tag"; done
+
+      - name: List all releases
+        run: |
+          echo "=== All releases ==="
+          releases=$(gh release list --json tagName,name --jq '.[] | "\(.tagName) - \(.name)"')
+          echo "$releases"
+
+      - name: Delete unmarked releases
+        run: |
+          echo "=== Deleting unmarked releases ==="
+
+          # 定义值得保留的版本模式
+          KEEP_PATTERNS=("v1.0.0" "v1.1.0" "v2.0.0" "⭐")
+
+          for release in $(gh release list --json tagName -q '.[].tagName'); do
+            SHOULD_KEEP=false
+
+            # 检查是否匹配保留模式
+            for pattern in "${KEEP_PATTERNS[@]}"; do
+              if [[ "$release" == *"$pattern"* ]]; then
+                SHOULD_KEEP=true
+                break
+              fi
+            done
+
+            # 也保留以 v1.x.x 或 v2.x.x 格式的正式版本
+            if [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              SHOULD_KEEP=true
+            fi
+
+            if [ "$SHOULD_KEEP" = false ]; then
+              echo "Deleting release: $release"
+              gh release delete "$release" --yes || echo "Failed to delete $release"
+            else
+              echo "Keeping release: $release"
+            fi
+          done
+
+      - name: Delete unmarked tags
+        run: |
+          echo "=== Deleting unmarked tags ==="
+
+          # 获取当前 HEAD 的 tag（这是最新构建）
+          CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "Current commit tag: $CURRENT_TAG"
+
+          for tag in $(git tag); do
+            SHOULD_KEEP=false
+
+            # 保留正式版本格式
+            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              SHOULD_KEEP=true
+              echo "Keeping formal version tag: $tag"
+            fi
+
+            # 保留当前构建的 tag
+            if [ "$tag" = "$CURRENT_TAG" ]; then
+              SHOULD_KEEP=true
+              echo "Keeping current build tag: $tag"
+            fi
+
+            if [ "$SHOULD_KEEP" = false ]; then
+              echo "Deleting local tag: $tag"
+              git tag -d "$tag" || echo "Failed to delete local $tag"
+
+              echo "Deleting remote tag: $tag"
+              git push origin :refs/tags/"$tag" || echo "Failed to delete remote $tag"
+            fi
+          done
+
+      - name: Verify cleanup
+        run: |
+          echo "=== Remaining releases ==="
+          gh release list || echo "No releases remaining"
+
+          echo ""
+          echo "=== Remaining tags ==="
+          git tag -l 'v*'
+
+          echo ""
+          echo "=== Cleanup complete ==="

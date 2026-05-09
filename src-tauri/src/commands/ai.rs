@@ -540,3 +540,128 @@ pub async fn generate_image(request: GenerateRequestDto) -> Result<String, Strin
 pub async fn list_models() -> Result<Vec<String>, String> {
     Ok(get_registry().list_models())
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExportData {
+    pub version: String,
+    pub api_keys: HashMap<String, String>,
+    pub settings: HashMap<String, Value>,
+    pub exported_at: i64,
+}
+
+#[tauri::command]
+pub async fn export_data(app: AppHandle) -> Result<String, String> {
+    info!("Exporting user data...");
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+
+    let settings_path = app_data_dir.join("settings.json");
+    let api_keys_path = app_data_dir.join("api_keys.json");
+
+    let mut export_data = ExportData {
+        version: "1.0".to_string(),
+        api_keys: HashMap::new(),
+        settings: HashMap::new(),
+        exported_at: now_ms(),
+    };
+
+    if settings_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&settings_path) {
+            if let Ok(settings) = serde_json::from_str::<HashMap<String, Value>>(&content) {
+                export_data.settings = settings;
+            }
+        }
+    }
+
+    if api_keys_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&api_keys_path) {
+            if let Ok(api_keys) = serde_json::from_str::<HashMap<String, String>>(&content) {
+                export_data.api_keys = api_keys;
+            }
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&export_data)
+        .map_err(|e| format!("Failed to serialize export data: {}", e))?;
+
+    info!("Exported {} API keys and {} settings",
+        export_data.api_keys.len(),
+        export_data.settings.len());
+
+    Ok(json)
+}
+
+#[tauri::command]
+pub async fn import_data(app: AppHandle, data: String) -> Result<(), String> {
+    info!("Importing user data...");
+
+    let export_data: ExportData = serde_json::from_str(&data)
+        .map_err(|e| format!("Failed to parse import data: {}", e))?;
+
+    if export_data.version != "1.0" {
+        return Err(format!("Unsupported export version: {}", export_data.version));
+    }
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+
+    std::fs::create_dir_all(&app_data_dir)
+        .map_err(|e| format!("Failed to create app data dir: {}", e))?;
+
+    if !export_data.api_keys.is_empty() {
+        let api_keys_path = app_data_dir.join("api_keys.json");
+        let json = serde_json::to_string_pretty(&export_data.api_keys)
+            .map_err(|e| format!("Failed to serialize API keys: {}", e))?;
+        std::fs::write(&api_keys_path, json)
+            .map_err(|e| format!("Failed to write API keys: {}", e))?;
+        info!("Imported {} API keys", export_data.api_keys.len());
+    }
+
+    if !export_data.settings.is_empty() {
+        let settings_path = app_data_dir.join("settings.json");
+        let json = serde_json::to_string_pretty(&export_data.settings)
+            .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+        std::fs::write(&settings_path, json)
+            .map_err(|e| format!("Failed to write settings: {}", e))?;
+        info!("Imported {} settings", export_data.settings.len());
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct DataPathInfo {
+    pub app_data_dir: String,
+    pub db_path: String,
+    pub settings_path: String,
+    pub api_keys_path: String,
+    pub is_external: bool,
+}
+
+#[tauri::command]
+pub async fn get_data_path(app: AppHandle) -> Result<DataPathInfo, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+
+    let db_path = app_data_dir.join("projects.db");
+    let settings_path = app_data_dir.join("settings.json");
+    let api_keys_path = app_data_dir.join("api_keys.json");
+
+    let path_str = app_data_dir.to_string_lossy().to_string();
+    let is_external = path_str.contains("/Android/data/") || path_str.contains("/data/data/");
+
+    Ok(DataPathInfo {
+        app_data_dir: app_data_dir.to_string_lossy().to_string(),
+        db_path: db_path.to_string_lossy().to_string(),
+        settings_path: settings_path.to_string_lossy().to_string(),
+        api_keys_path: api_keys_path.to_string_lossy().to_string(),
+        is_external,
+    })
+}

@@ -4,7 +4,8 @@ export type SettingsCategory =
   | 'appearance'
   | 'general'
   | 'experimental'
-  | 'about';
+  | 'about'
+  | 'data';
 
 interface OpenSettingsEventDetail {
   category?: SettingsCategory;

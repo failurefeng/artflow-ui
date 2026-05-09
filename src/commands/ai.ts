@@ -235,3 +235,54 @@ export async function listModels(): Promise<string[]> {
     return ['kie/m2.7', 'ppio/flux', 'fal/flux', 'grsai/flux'];
   }
 }
+
+export interface DataPathInfo {
+  app_data_dir: string;
+  db_path: string;
+  settings_path: string;
+  api_keys_path: string;
+  is_external: boolean;
+}
+
+export async function getDataPath(): Promise<DataPathInfo> {
+  if (isTauri()) {
+    return await invoke<DataPathInfo>('get_data_path');
+  } else {
+    return {
+      app_data_dir: 'Web storage (localStorage)',
+      db_path: 'N/A',
+      settings_path: 'localStorage: storyboard_settings',
+      api_keys_path: 'localStorage: storyboard_api_keys',
+      is_external: false,
+    };
+  }
+}
+
+export async function exportData(): Promise<string> {
+  if (isTauri()) {
+    return await invoke<string>('export_data');
+  } else {
+    const settings = localStorage.getItem('storyboard_settings') || '{}';
+    const apiKeys = localStorage.getItem('storyboard_api_keys') || '{}';
+    return JSON.stringify({
+      version: '1.0',
+      settings: JSON.parse(settings),
+      api_keys: JSON.parse(apiKeys),
+      exported_at: Date.now(),
+    }, null, 2);
+  }
+}
+
+export async function importData(data: string): Promise<void> {
+  if (isTauri()) {
+    await invoke('import_data', { data });
+  } else {
+    const parsed = JSON.parse(data);
+    if (parsed.settings) {
+      localStorage.setItem('storyboard_settings', JSON.stringify(parsed.settings));
+    }
+    if (parsed.api_keys) {
+      localStorage.setItem('storyboard_api_keys', JSON.stringify(parsed.api_keys));
+    }
+  }
+}
