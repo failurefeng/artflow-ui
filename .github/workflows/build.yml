@@ -71,7 +71,8 @@ jobs:
             const path = require('path');
             
             const releaseTag = context.ref.replace('refs/tags/', '');
-            console.log('Creating release for tag:', releaseTag);
+            const releaseVersion = 'v0.0.0';
+            console.log('Creating release for tag:', releaseVersion);
             
             const apkPath = './android/app/build/outputs/apk/debug/app-debug.apk';
             const sourcePath = './source.tar.gz';
@@ -79,8 +80,8 @@ jobs:
             const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: releaseTag,
-              name: `Storyboard Copilot v${releaseTag}`,
+              tag_name: releaseVersion,
+              name: `Storyboard Copilot ${releaseVersion}`,
               body: `Build ${context.runNumber}`
             });
             
