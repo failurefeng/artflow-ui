@@ -102,7 +102,7 @@ function saveApiKeyToSettings(provider: string, apiKey: string): void {
   }
 }
 
-async function pollGrsaiTask(apiKey: string, taskId: string, _modelProvider: string): Promise<string> {
+async function pollGrsaiTask(apiKey: string, taskId: string): Promise<string> {
   const pollEndpoint = 'https://grsai.dakka.com.cn/v1/draw/result';
   const pollInterval = 3000; // 3 seconds
   const maxAttempts = 40; // 2 minutes max
@@ -128,40 +128,56 @@ async function pollGrsaiTask(apiKey: string, taskId: string, _modelProvider: str
         continue;
       }
       
-      const data = await response.json() as Record<string, unknown>;
-      console.info(`[GRSAI Poll] Response:`, JSON.stringify(data).slice(0, 500));
+      const responseText = await response.text();
+      console.info(`[GRSAI Poll] Response:`, responseText.slice(0, 500));
       
-      const responseData = data as {
-        code?: number;
-        msg?: string;
-        data?: {
-          id?: string;
-          results?: Array<{ url?: string }>;
-          status?: string;
-          error?: string;
-          failure_reason?: string;
-        };
-      };
-      
-      // Check for error code
-      if (responseData.code !== undefined && responseData.code !== 0) {
-        throw new Error(`GRSAI Poll error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
+      // Parse SSE format
+      let pollData: Record<string, unknown> | null = null;
+      const lines = responseText.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            pollData = JSON.parse(line.slice(6));
+            break;
+          } catch {
+            continue;
+          }
+        }
       }
       
+      if (!pollData) {
+        try {
+          pollData = JSON.parse(responseText);
+        } catch {
+          continue;
+        }
+      }
+      
+      const responseData = pollData as {
+        id?: string;
+        results?: Array<{ url?: string; content?: string }>;
+        progress?: number;
+        status?: string;
+        error?: string;
+        failure_reason?: string;
+      };
+      
+      console.info(`[GRSAI Poll] Status: ${responseData.status}, Progress: ${responseData.progress}`);
+      
       // Check for result
-      if (responseData.data?.results?.[0]?.url) {
+      if (responseData.results?.[0]?.url) {
         console.info(`[GRSAI Poll] Got result!`);
-        return responseData.data.results[0].url!;
+        return responseData.results[0].url!;
       }
       
       // Check for failed status
-      if (responseData.data?.status === 'failed') {
-        const reason = responseData.data.error || responseData.data.failure_reason || 'unknown failure';
+      if (responseData.status === 'failed') {
+        const reason = responseData.error || responseData.failure_reason || 'unknown failure';
         throw new Error(`GRSAI task failed: ${reason}`);
       }
       
       // Still running, continue polling
-      console.info(`[GRSAI Poll] Task still running (${responseData.data?.status || 'unknown status'})`);
+      console.info(`[GRSAI Poll] Task still running (${responseData.status || 'unknown status'})`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.warn(`[GRSAI Poll] Error: ${errorMessage}`);
@@ -310,13 +326,50 @@ async function callGenerationAPI(request: {
     
     console.info('[GRSAI] Raw response:', responseText.slice(0, 500));
     
+    // GRSAI SSE format: data: {"id":"...", "results":[...],"status":"running/succeeded"}
     let parsedData: Record<string, unknown> | null = null;
     const lines = responseText.split('\n');
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         try {
-          parsedData = JSON.parse(line.slice(6));
-          break;
+          const json = JSON.parse(line.slice(6));
+          // Parse GRSAI direct format
+          const grsaiResponse = json as {
+            id?: string;
+            results?: Array<{ url?: string; content?: string }>;
+            progress?: number;
+            status?: string;
+            error?: string;
+            failure_reason?: string;
+          };
+          
+          console.info('[GRSAI] Status:', grsaiResponse.status, 'Progress:', grsaiResponse.progress);
+          
+          // If we have results, use it
+          if (grsaiResponse.results?.[0]?.url) {
+            parsedData = json;
+            console.info('[GRSAI] Got result URL');
+            break;
+          }
+          
+          // If succeeded but no results yet, keep trying
+          if (grsaiResponse.status === 'succeeded' && !grsaiResponse.results?.[0]?.url) {
+            console.info('[GRSAI] Succeeded but results pending...');
+            parsedData = json;
+            break;
+          }
+          
+          // If failed
+          if (grsaiResponse.status === 'failed') {
+            const reason = grsaiResponse.error || grsaiResponse.failure_reason || 'unknown';
+            throw new Error(`GRSAI task failed: ${reason}`);
+          }
+          
+          // If still running, keep parsing for final result
+          if (grsaiResponse.status === 'running' || grsaiResponse.progress !== undefined) {
+            // Continue to next line
+            continue;
+          }
         } catch {
           continue;
         }
@@ -324,6 +377,7 @@ async function callGenerationAPI(request: {
     }
     
     if (!parsedData) {
+      // Try parsing entire response as JSON
       try {
         parsedData = JSON.parse(responseText);
       } catch {
@@ -334,40 +388,39 @@ async function callGenerationAPI(request: {
     const data = parsedData;
     console.info('[GRSAI] Parsed data:', JSON.stringify(data).slice(0, 500));
     
+    // GRSAI direct format
     const responseData = data as {
-      code?: number;
-      msg?: string;
-      data?: {
-        id?: string;
-        results?: Array<{ url?: string }>;
-        status?: string;
-        error?: string;
-        failure_reason?: string;
-      };
+      id?: string;
+      results?: Array<{ url?: string; content?: string }>;
+      progress?: number;
+      status?: string;
+      error?: string;
+      failure_reason?: string;
     };
     
-    if (responseData.code !== undefined && responseData.code !== 0) {
-      throw new Error(`GRSAI API error (code ${responseData.code}): ${responseData.msg || 'unknown'}`);
+    // Check for direct result
+    if (responseData.results?.[0]?.url) {
+      const imageUrl = responseData.results[0].url;
+      console.info('[GRSAI] Image URL:', imageUrl);
+      
+      // Download and convert to base64
+      return await fetchImageAsBase64(imageUrl);
     }
     
-    let grsaiResult: string | null = null;
+    // If we have an ID but no results yet, need to poll
+    if (responseData.id) {
+      console.info('[GRSAI] Need to poll for result, task ID:', responseData.id);
+      const imageUrl = await pollGrsaiTask(apiKey, responseData.id);
+      return await fetchImageAsBase64(imageUrl);
+    }
     
-    if (responseData.data?.results?.[0]?.url) {
-      grsaiResult = responseData.data.results[0].url;
-    } else if (responseData.data?.id) {
-      grsaiResult = await pollGrsaiTask(apiKey, responseData.data.id, modelProvider);
-    } else if (responseData.data?.status === 'failed') {
-      const reason = responseData.data.error || responseData.data.failure_reason || 'unknown';
+    // If failed
+    if (responseData.status === 'failed') {
+      const reason = responseData.error || responseData.failure_reason || 'unknown';
       throw new Error(`GRSAI task failed: ${reason}`);
-    } else {
-      throw new Error(`GRSAI response missing task ID and result`);
     }
     
-    if (grsaiResult && grsaiResult.startsWith('http')) {
-      grsaiResult = await fetchImageAsBase64(grsaiResult);
-    }
-    
-    return grsaiResult;
+    throw new Error(`GRSAI response missing image result`);
   }
   
   let data: Record<string, unknown>;
