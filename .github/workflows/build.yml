@@ -49,15 +49,10 @@ jobs:
       - name: Verify APK exists
         run: |
           ls -la android/app/build/outputs/apk/debug/
-          if [ ! -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "ERROR: APK file not found!"
-            exit 1
-          fi
-          echo "APK size: $(du -h android/app/build/outputs/apk/debug/app-debug.apk | cut -f1)"
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create source archive
         run: |
-          echo "Creating source archive..."
           tar -czf source.tar.gz \
             --exclude=.git \
             --exclude=node_modules \
@@ -67,8 +62,7 @@ jobs:
             --exclude='*.tar.gz' \
             --exclude='*.zip' \
             *
-          echo "Archive created: $(ls -la source.tar.gz)"
-          echo "Source archive size: $(du -h source.tar.gz | cut -f1)"
+          ls -la source.tar.gz
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -81,21 +75,21 @@ jobs:
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          echo "Creating release for tag: ${{ github.ref }}"
-          echo "APK exists: $(ls -la android/app/build/outputs/apk/debug/app-debug.apk)"
-          echo "Source archive exists: $(ls -la source.tar.gz)"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          body: |
+            ## Download Files
+
+            - **APK**: `app-debug.apk`
+            - **Source Code**: `source.tar.gz`
+
+            ## Build Info
+
+            - Build Number: ${{ github.run_number }}
+            - Commit: ${{ github.sha }}
           files: |
             android/app/build/outputs/apk/debug/app-debug.apk
             source.tar.gz
-          generate_release_notes: true
           draft: false
           prerelease: false
         env:
