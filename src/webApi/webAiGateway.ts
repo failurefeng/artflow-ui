@@ -102,6 +102,65 @@ function saveApiKeyToSettings(provider: string, apiKey: string): void {
   }
 }
 
+async function pollGrsaiTask(apiKey: string, taskId: string, _modelProvider: string): Promise<string> {
+  const pollEndpoint = 'https://grsai.dakka.com.cn/v1/draw/result';
+  const pollInterval = 2000; // 2 seconds
+  const maxAttempts = 60; // 2 minutes max
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    
+    try {
+      const response = await fetch(pollEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ id: taskId }),
+      });
+      
+      if (!response.ok) {
+        console.warn(`[GRSAI Poll] HTTP ${response.status}, attempt ${attempt + 1}/${maxAttempts}`);
+        continue;
+      }
+      
+      const data = await response.json() as Record<string, unknown>;
+      console.info(`[GRSAI Poll] Response:`, JSON.stringify(data).slice(0, 300));
+      
+      // Check for code error
+      const code = (data as { code?: number }).code;
+      if (code !== undefined && code !== 0) {
+        const msg = (data as { msg?: string }).msg || 'unknown error';
+        throw new Error(`GRSAI Poll error (code ${code}): ${msg}`);
+      }
+      
+      // Check for result
+      const results = (data as { data?: { results?: Array<{ url?: string }> } }).data?.results;
+      if (results && results.length > 0 && results[0].url) {
+        return results[0].url;
+      }
+      
+      // Check for status
+      const status = (data as { data?: { status?: string } }).data?.status;
+      if (status === 'failed') {
+        const error = (data as { data?: { error?: string; failure_reason?: string } }).data;
+        const reason = error?.error || error?.failure_reason || 'unknown failure';
+        throw new Error(`GRSAI task failed: ${reason}`);
+      }
+      
+      console.info(`[GRSAI Poll] Task still running (attempt ${attempt + 1}/${maxAttempts})`);
+    } catch (err) {
+      console.warn(`[GRSAI Poll] Error:`, err);
+      if (attempt === maxAttempts - 1) {
+        throw err;
+      }
+    }
+  }
+  
+  throw new Error('GRSAI task timeout - please check API dashboard');
+}
+
 async function callGenerationAPI(request: {
   prompt: string;
   model: string;
@@ -149,12 +208,15 @@ async function callGenerationAPI(request: {
       ...(request.extra_params ?? {}),
     };
   } else if (modelProvider === 'grsai') {
-    endpoint = 'https://api.grsai.xiaojukeji.com/v1/image/generation';
+    endpoint = 'https://grsai.dakka.com.cn/v1/draw/nano-banana';
     body = {
       model: modelName || 'nano-banana-2',
       prompt: request.prompt,
-      size: request.size,
-      ...(request.extra_params ?? {}),
+      aspectRatio: request.aspect_ratio,
+      imageSize: request.size,
+      urls: normalizedReferenceImages.length > 0 ? normalizedReferenceImages : undefined,
+      webHook: '-1',
+      shutProgress: true,
     };
   } else {
     throw new Error(`不支持的模型提供商: ${modelProvider}`);
@@ -258,13 +320,29 @@ async function callGenerationAPI(request: {
       imageResult = await fetchImageAsBase64(imageResult);
     }
   } else if (modelProvider === 'grsai') {
-    // Try various response formats
-    imageResult = (data.data as Array<{url?: string}>)?.find(d => d.url)?.url
-      ?? (data.data as Array<{base64?: string}>)?.find(d => d.base64)?.base64
-      ?? (data.image_url as string | null)
-      ?? (data.url as string | null)
-      ?? (data.output as string | null)
-      ?? (data.result as string | null);
+    // GRSAI uses async API - may return task ID or direct result
+    const code = (data as { code?: number }).code;
+    if (code !== undefined && code !== 0) {
+      const msg = (data as { msg?: string }).msg || 'unknown error';
+      throw new Error(`GRSAI API error (code ${code}): ${msg}`);
+    }
+    
+    // Check for direct result first
+    const results = (data as { data?: { results?: Array<{ url?: string }> } }).data?.results;
+    if (results && results.length > 0 && results[0].url) {
+      imageResult = results[0].url;
+    }
+    
+    // If no direct result, need to poll for task result
+    if (!imageResult) {
+      const taskId = (data as { data?: { id?: string } }).data?.id;
+      if (!taskId) {
+        throw new Error('GRSAI response missing task ID and no direct result');
+      }
+      
+      // Poll for result
+      imageResult = await pollGrsaiTask(apiKey, taskId, modelProvider);
+    }
     
     if (imageResult && imageResult.startsWith('http')) {
       imageResult = await fetchImageAsBase64(imageResult);
