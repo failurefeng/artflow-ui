@@ -77,6 +77,12 @@ jobs:
           - Commit: ${{ github.sha }}
           EOF
 
+          EXISTING=$(gh release view "$RELEASE_TAG" --json tagName --jq '.tagName' 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            echo "Release $RELEASE_TAG already exists, deleting and recreating..."
+            gh release delete "$RELEASE_TAG" --yes || true
+          fi
+
           gh release create "$RELEASE_TAG" \
             --title "Storyboard Copilot $RELEASE_TAG" \
             --body-file release_body.txt \
