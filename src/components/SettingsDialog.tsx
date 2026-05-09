@@ -383,19 +383,27 @@ export function SettingsDialog({
         className={`absolute inset-0 bg-black/90 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
-      <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full">
+      <div className="relative w-[min(96vw,1120px)] max-h-[92vh] max-md:max-h-full max-md:w-full max-md:max-w-full">
         <div
-          className={`relative mx-auto max-h-[90vh] max-md:max-h-full w-[700px] max-md:w-full max-md:h-[95vh] max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block`}
+          className={`relative mx-auto max-h-[90vh] w-[700px] max-md:w-full max-md:h-screen max-md:max-h-screen max-md:rounded-none max-md:flex-col overflow-hidden rounded-lg border border-border-dark bg-surface-dark shadow-xl transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} flex max-md:block max-md:touch-pan-y`}
         >
-          {/* Close button */}
+          {/* Mobile close button - top left */}
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 p-1 hover:bg-bg-dark rounded transition-colors z-10"
+            className="absolute top-3 left-3 p-2 hover:bg-bg-dark rounded-full transition-colors z-20 max-md:block hidden"
+          >
+            <X className="w-6 h-6 text-text-muted" />
+          </button>
+
+          {/* Desktop close button - top right */}
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 p-1 hover:bg-bg-dark rounded transition-colors z-20 max-md:hidden"
           >
             <X className="w-5 h-5 text-text-muted" />
           </button>
 
-          {/* Sidebar - hidden on mobile, shows as header */}
+          {/* Sidebar - hidden on mobile */}
           <div className="w-[180px] max-md:hidden bg-bg-dark border-r border-border-dark flex flex-col">
             <div className="px-4 py-4">
               <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -505,7 +513,7 @@ export function SettingsDialog({
           </div>
 
           {/* Content */}
-          <div className="flex-1 flex flex-col max-md:flex-1">
+          <div className="flex-1 flex flex-col max-md:flex-1 max-md:pt-12">
             {activeCategory === 'providers' && (
               <>
                 <div className="px-6 py-5 border-b border-border-dark">
