@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Download, Upload, Folder, AlertCircle, CheckCircle, Star, FileText } from 'lucide-react';
 import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 const MILESTONE_INFO = {
   version: '1.2.0',
@@ -64,18 +65,25 @@ export function DataManagementPanel() {
       return;
     }
     
+    const fileName = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    
     try {
-      const fileName = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      console.log('[Download] Attempting to save file via Filesystem plugin...');
+      await Filesystem.writeFile({
+        path: fileName,
+        data: exportedData,
+        directory: Directory.Documents,
+      });
+      console.log('[Download] Filesystem.writeFile succeeded');
+      setMessage({ 
+        type: 'success', 
+        text: `文件已成功保存到: Documents/${fileName}` 
+      });
+      return;
+    } catch (fsError) {
+      console.warn('[Download] Filesystem.writeFile failed:', fsError);
       
-      let savedPath: string;
       try {
-        await Filesystem.writeFile({
-          path: fileName,
-          data: exportedData,
-          directory: Directory.Documents,
-        });
-        savedPath = `Documents/${fileName}`;
-      } catch {
         const blob = new Blob([exportedData], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -85,12 +93,18 @@ export function DataManagementPanel() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        savedPath = '浏览器下载';
+        setMessage({ 
+          type: 'success', 
+          text: `文件已通过浏览器下载: ${fileName}` 
+        });
+        return;
+      } catch (blobError) {
+        console.error('[Download] Blob download also failed:', blobError);
+        setMessage({ 
+          type: 'error', 
+          text: `保存失败，请尝试复制内容。Filesystem错误: ${String(fsError)}` 
+        });
       }
-      
-      setMessage({ type: 'success', text: `文件已保存到: ${savedPath}` });
-    } catch (err) {
-      setMessage({ type: 'error', text: `下载失败: ${err}` });
     }
   }, [exportedData]);
 
@@ -122,11 +136,22 @@ export function DataManagementPanel() {
     setImportStatus('loading');
     setMessage(null);
     try {
+      const parsedData = JSON.parse(importText);
+      
+      if (parsedData.app_keys && typeof parsedData.app_keys === 'object') {
+        const setProviderApiKey = useSettingsStore.getState().setProviderApiKey;
+        for (const [providerId, apiKey] of Object.entries(parsedData.app_keys)) {
+          if (typeof apiKey === 'string' && apiKey.trim()) {
+            setProviderApiKey(providerId, apiKey);
+          }
+        }
+      }
+      
       const result = await importData(importText);
       setImportStatus('success');
       setMessage({ 
         type: 'success', 
-        text: `数据导入成功！${result.projects_imported > 0 ? `导入了 ${result.projects_imported} 个项目。` : ''}请重启应用使更改生效。` 
+        text: `数据导入成功！${result.projects_imported > 0 ? `导入了 ${result.projects_imported} 个项目。` : ''}API Key已同步到当前会话。` 
       });
       setImportText('');
     } catch (err) {

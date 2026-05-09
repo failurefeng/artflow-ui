@@ -574,18 +574,22 @@ fn export_projects_json(app: &AppHandle) -> Result<Vec<ProjectExportRecord>, Str
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open projects DB: {}", e))?;
 
-    let table_exists: bool = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'",
-            [],
-            |row| row.get::<_, i32>(0),
-        )
-        .unwrap_or(0) > 0;
-
-    if !table_exists {
-        info!("[Export] 'projects' table does not exist");
-        return Ok(Vec::new());
-    }
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          node_count INTEGER NOT NULL DEFAULT 0,
+          nodes_json TEXT NOT NULL,
+          edges_json TEXT NOT NULL,
+          viewport_json TEXT NOT NULL,
+          history_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .map_err(|e| format!("Failed to ensure projects table: {}", e))?;
 
     let project_count: i32 = conn
         .query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))
@@ -613,13 +617,37 @@ fn export_projects_json(app: &AppHandle) -> Result<Vec<ProjectExportRecord>, Str
         .filter_map(|r| r.ok())
         .collect();
 
+    info!("[Export] Returning {} projects", projects.len());
     Ok(projects)
 }
 
 fn import_projects_json(app: &AppHandle, projects: Vec<ProjectExportRecord>) -> Result<usize, String> {
     let db_path = resolve_db_path(app)?;
+    
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create app data dir: {}", e))?;
+    }
+    
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open projects DB: {}", e))?;
+
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          node_count INTEGER NOT NULL DEFAULT 0,
+          nodes_json TEXT NOT NULL,
+          edges_json TEXT NOT NULL,
+          viewport_json TEXT NOT NULL,
+          history_json TEXT NOT NULL
+        );
+        "#,
+    )
+    .map_err(|e| format!("Failed to ensure projects table: {}", e))?;
 
     let mut imported = 0;
     for project in projects {
@@ -644,6 +672,7 @@ fn import_projects_json(app: &AppHandle, projects: Vec<ProjectExportRecord>) -> 
         imported += 1;
     }
 
+    info!("[Import] Imported {} projects", imported);
     Ok(imported)
 }
 
