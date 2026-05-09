@@ -59,13 +59,13 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
-      - name: Create Release
+      - name: Create Release with Assets
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           RELEASE_TAG="${GITHUB_REF#refs/tags/}"
           echo "Creating release for tag: $RELEASE_TAG"
 
-          cat > release_body.txt << 'EOF'
+          BODY=$(cat << 'BODYEOF'
           ## Download Files
 
           - **APK**: app-debug.apk
@@ -73,23 +73,39 @@ jobs:
 
           ## Build Info
 
-          - Build Number: ${{ github.run_number }}
-          - Commit: ${{ github.sha }}
-          EOF
+          - Build Number: %BUILD_NUM%
+          - Commit: %COMMIT_SHA%
+          BODYEOF
+          )
+          BODY="${BODY//\%BUILD_NUM\%/${{ github.run_number }}}"
+          BODY="${BODY//\%COMMIT_SHA\%/${{ github.sha }}}"
 
-          EXISTING=$(gh release view "$RELEASE_TAG" --json tagName --jq '.tagName' 2>/dev/null || echo "")
-          if [ -n "$EXISTING" ]; then
-            echo "Release $RELEASE_TAG already exists, deleting and recreating..."
-            gh release delete "$RELEASE_TAG" --yes || true
-          fi
+          RESPONSE=$(curl -s -L -X POST \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\": \"$RELEASE_TAG\", \"name\": \"Storyboard Copilot $RELEASE_TAG\", \"body\": $(echo "$BODY" | jq -Rs .), \"draft\": false, \"prerelease\": false}")
 
-          gh release create "$RELEASE_TAG" \
-            --title "Storyboard Copilot $RELEASE_TAG" \
-            --body-file release_body.txt \
-            android/app/build/outputs/apk/debug/app-debug.apk \
-            source.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          echo "Created release ID: $RELEASE_ID"
+
+          curl -s -L -X POST \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@android/app/build/outputs/apk/debug/app-debug.apk" \
+            -H "Content-Length: $(stat -c%s android/app/build/outputs/apk/debug/app-debug.apk)" \
+            | jq -r '.browser_upload_url' || true
+
+          curl -s -L -X POST \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/gzip" \
+            --data-binary "@source.tar.gz" \
+            -H "Content-Length: $(stat -c%s source.tar.gz)" \
+            | jq -r '.browser_upload_url' || true
+
+          echo "Release created successfully!"
 
       - name: Upload artifacts
         if: "!startsWith(github.ref, 'refs/tags/v')"
