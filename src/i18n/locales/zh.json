@@ -201,6 +201,8 @@
     "appearanceDesc": "自定义应用外观",
     "experimental": "实验",
     "experimentalDesc": "用于放置实验性质或低频使用的功能开关。",
+    "data": "数据",
+    "dataDesc": "管理数据导入导出",
     "about": "关于",
     "aboutDesc": "应用信息",
     "general": "通用",

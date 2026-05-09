@@ -77,7 +77,7 @@ export function DataManagementPanel() {
       console.log('[Download] Filesystem.writeFile succeeded');
       setMessage({ 
         type: 'success', 
-        text: `文件已成功保存到: Documents/${fileName}` 
+        text: `文件已保存！\n请在手机"文件"应用的"文档"文件夹中查找:\n${fileName}` 
       });
       return;
     } catch (fsError) {
@@ -95,7 +95,7 @@ export function DataManagementPanel() {
         URL.revokeObjectURL(url);
         setMessage({ 
           type: 'success', 
-          text: `文件已通过浏览器下载: ${fileName}` 
+          text: `文件已下载！\n请在浏览器下载目录或手机"下载"文件夹中查找:\n${fileName}` 
         });
         return;
       } catch (blobError) {

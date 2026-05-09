@@ -248,9 +248,19 @@ export async function getDataPath(): Promise<DataPathInfo> {
   if (isTauri()) {
     return await invoke<DataPathInfo>('get_data_path');
   } else {
+    const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+    if (isMobile) {
+      return {
+        app_data_dir: '应用内部存储',
+        db_path: 'IndexedDB 数据库',
+        settings_path: '应用设置缓存',
+        api_keys_path: '密钥安全存储',
+        is_external: false,
+      };
+    }
     return {
-      app_data_dir: 'Web storage (localStorage)',
-      db_path: 'N/A',
+      app_data_dir: '浏览器本地存储 (localStorage)',
+      db_path: 'IndexedDB',
       settings_path: 'localStorage: storyboard_settings',
       api_keys_path: 'localStorage: storyboard_api_keys',
       is_external: false,

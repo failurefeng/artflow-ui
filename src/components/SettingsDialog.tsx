@@ -419,7 +419,7 @@ export function SettingsDialog({
                 onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                 className="flex items-center gap-2 text-lg font-semibold text-text-dark"
               >
-                <span>{t(activeCategory)}</span>
+                <span>{t(`settings.${activeCategory}`)}</span>
                 <ChevronDown className={`w-5 h-5 text-text-muted transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`} />
               </button>
 
