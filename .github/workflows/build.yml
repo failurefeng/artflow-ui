@@ -59,21 +59,13 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
-      - name: Create Release with Assets
+      - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          RELEASE_TAG="${GITHUB_REF#refs/tags/}"
-          echo "Creating release for tag: $RELEASE_TAG"
-          echo "Checking if APK exists..."
-          ls -la android/app/build/outputs/apk/debug/app-debug.apk
-          echo "Checking if source.tar.gz exists..."
-          ls -la source.tar.gz
-          gh release create "$RELEASE_TAG" \
-            --title "Storyboard Copilot $RELEASE_TAG" \
-            --notes "Build ${{ github.run_number }} - ${{ github.sha }}" \
-            --generate-notes
-          gh release upload "$RELEASE_TAG" \
-            android/app/build/outputs/apk/debug/app-debug.apk \
+        uses: softprops/action-gh-release@v2
+        with:
+          body: "Build ${{ github.run_number }} - ${{ github.sha }}"
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
             source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
