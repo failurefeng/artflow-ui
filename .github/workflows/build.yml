@@ -57,15 +57,17 @@ jobs:
 
       - name: Create source archive
         run: |
-          tar -czvf source.tar.gz \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='dist' \
-            --exclude='android' \
-            --exclude='.github' \
+          echo "Creating source archive..."
+          tar -czf source.tar.gz \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=dist \
+            --exclude=android \
+            --exclude=.github \
             --exclude='*.tar.gz' \
             --exclude='*.zip' \
-            .
+            *
+          echo "Archive created: $(ls -la source.tar.gz)"
           echo "Source archive size: $(du -h source.tar.gz | cut -f1)"
 
       - name: Upload artifacts
