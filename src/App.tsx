@@ -17,6 +17,7 @@ import {
 } from './features/settings/settingsEvents';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { AppContextProvider } from './contexts/AppStateContext';
+import { useSwipeBack } from './hooks/useSwipeBack';
 
 function toRgbCssValue(hexColor: string): string {
   const hex = hexColor.replace('#', '');
@@ -42,6 +43,8 @@ function App() {
   const hydrate = useProjectStore((state) => state.hydrate);
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const closeProject = useProjectStore((state) => state.closeProject);
+
+  const { overlayRef, indicatorRef, isSwiping, swipeProgress } = useSwipeBack(closeProject, Boolean(currentProjectId));
 
   useEffect(() => {
     const initCapacitorStatusBar = async () => {
@@ -153,6 +156,26 @@ function App() {
           <main className="flex-1 relative">
             {currentProjectId ? <Canvas /> : <ProjectManager />}
           </main>
+
+          <div
+            ref={overlayRef}
+            className="fixed inset-0 pointer-events-none z-50 transition-opacity"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+          />
+          <div
+            ref={indicatorRef}
+            className="fixed top-1/2 left-0 -translate-y-1/2 pointer-events-none z-50 transition-transform transition-opacity"
+            style={{
+              opacity: 0,
+              transform: 'translateX(-40px) scale(0.5)',
+            }}
+          >
+            <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center shadow-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </div>
+          </div>
 
           <SettingsDialog
             isOpen={showSettings}
