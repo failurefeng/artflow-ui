@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Download, Upload, Folder, AlertCircle, CheckCircle, Star, FileText } from 'lucide-react';
 import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { useSettingsStore } from '@/stores/settingsStore';
 
 const MILESTONE_INFO = {
@@ -64,27 +64,29 @@ export function DataManagementPanel() {
       setMessage({ type: 'error', text: '没有可下载的数据，请先点击"生成导出数据"' });
       return;
     }
-    
-    const fileName = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    
+
+    const fileName = `storyboard_backup_${new Date().toISOString().slice(0, 10)}.txt`;
+
     try {
-      console.log('[Download] Attempting to save file via Filesystem plugin...');
+      console.log('[Download] Saving file as .txt with UTF8 encoding...');
+
       await Filesystem.writeFile({
         path: fileName,
         data: exportedData,
         directory: Directory.Documents,
+        encoding: Encoding.UTF8,
       });
       console.log('[Download] Filesystem.writeFile succeeded');
-      setMessage({ 
-        type: 'success', 
-        text: `文件已保存！\n请在手机"文件"应用的"文档"文件夹中查找:\n${fileName}` 
+      setMessage({
+        type: 'success',
+        text: `文件已保存为文本格式！\n请在手机"文件"应用的"文档"文件夹中查找:\n${fileName}\n\n（可用文本编辑器打开，如果需要 JSON 格式可将后缀改为 .json）`,
       });
       return;
     } catch (fsError) {
       console.warn('[Download] Filesystem.writeFile failed:', fsError);
-      
+
       try {
-        const blob = new Blob([exportedData], { type: 'application/json' });
+        const blob = new Blob([exportedData], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -93,16 +95,16 @@ export function DataManagementPanel() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        setMessage({ 
-          type: 'success', 
-          text: `文件已下载！\n请在浏览器下载目录或手机"下载"文件夹中查找:\n${fileName}` 
+        setMessage({
+          type: 'success',
+          text: `文件已下载！\n请在浏览器下载目录或手机"下载"文件夹中查找:\n${fileName}`,
         });
         return;
       } catch (blobError) {
         console.error('[Download] Blob download also failed:', blobError);
-        setMessage({ 
-          type: 'error', 
-          text: `保存失败，请尝试复制内容。Filesystem错误: ${String(fsError)}` 
+        setMessage({
+          type: 'error',
+          text: `保存失败，请尝试复制内容。Filesystem错误: ${String(fsError)}`,
         });
       }
     }

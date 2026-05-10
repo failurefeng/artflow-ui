@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 export interface GenerateRequest {
   prompt: string;
@@ -250,13 +251,27 @@ export async function getDataPath(): Promise<DataPathInfo> {
   } else {
     const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
     if (isMobile) {
-      return {
-        app_data_dir: '应用内部存储',
-        db_path: 'IndexedDB 数据库',
-        settings_path: '应用设置缓存',
-        api_keys_path: '密钥安全存储',
-        is_external: false,
-      };
+      try {
+        const documentsUri = await Filesystem.getUri({ directory: Directory.Documents, path: '' });
+        const documentsPath = documentsUri.uri.replace('file://', '');
+        const dbPath = `${documentsPath}indexeddb/storyboard_projects`;
+        const settingsPath = `${documentsPath}cache/settings`;
+        return {
+          app_data_dir: documentsPath,
+          db_path: dbPath,
+          settings_path: settingsPath,
+          api_keys_path: `${documentsPath}secure/api_keys`,
+          is_external: false,
+        };
+      } catch {
+        return {
+          app_data_dir: '应用内部存储',
+          db_path: 'IndexedDB 数据库',
+          settings_path: '应用设置缓存',
+          api_keys_path: '密钥安全存储',
+          is_external: false,
+        };
+      }
     }
     return {
       app_data_dir: '浏览器本地存储 (localStorage)',
