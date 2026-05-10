@@ -34,6 +34,7 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   const resumeCallbacksRef = useRef<Set<() => void>>(new Set());
   const lastActiveTimeRef = useRef<number>(Date.now());
   const isCapacitor = isRunningInCapacitor();
+  const isInitializedRef = useRef(false);
 
   const onAppResume = useCallback((callback: () => void) => {
     resumeCallbacksRef.current.add(callback);
@@ -65,12 +66,14 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     if (isCapacitor) {
       const initCapacitorApp = async () => {
         try {
-          await CapacitorApp.addListener('resume', () => {
-            console.log('[AppState] Capacitor resume event');
+          console.log('[AppState] Initializing Capacitor App listeners...');
+
+          const resumeListener = await CapacitorApp.addListener('resume', () => {
+            console.log('[AppState] Capacitor resume event received');
             triggerResume();
           });
 
-          await CapacitorApp.addListener('appStateChange', (appState) => {
+          const stateChangeListener = await CapacitorApp.addListener('appStateChange', (appState) => {
             console.log('[AppState] Capacitor appStateChange:', appState.isActive);
             if (!appState.isActive) {
               setState(prev => ({
@@ -82,7 +85,23 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          console.log('[AppState] Capacitor App listeners registered');
+          const initialState = await CapacitorApp.getState();
+          console.log('[AppState] Initial app state:', initialState.isActive);
+          if (!initialState.isActive) {
+            setState(prev => ({
+              isActive: false,
+              lastActiveTime: prev.lastActiveTime,
+            }));
+          }
+
+          isInitializedRef.current = true;
+          console.log('[AppState] Capacitor App listeners registered successfully');
+
+          cleanup = () => {
+            console.log('[AppState] Cleaning up Capacitor App listeners');
+            resumeListener.remove();
+            stateChangeListener.remove();
+          };
         } catch (e) {
           console.error('[AppState] Failed to initialize Capacitor App listeners:', e);
         }
@@ -90,8 +109,8 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
 
       initCapacitorApp();
 
-      cleanup = () => {
-        CapacitorApp.removeAllListeners();
+      return () => {
+        if (cleanup) cleanup();
       };
     } else {
       const handleVisibilityChange = () => {
@@ -116,11 +135,11 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
           document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
       }
-    }
 
-    return () => {
-      if (cleanup) cleanup();
-    };
+      return () => {
+        if (cleanup) cleanup();
+      };
+    }
   }, [isCapacitor]);
 
   const value: AppContextValue = {

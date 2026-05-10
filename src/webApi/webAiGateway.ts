@@ -278,15 +278,15 @@ async function callGenerationAPI(request: {
     };
   } else if (modelProvider === 'grsai') {
       endpoint = 'https://grsai.dakka.com.cn/v1/draw/nano-banana';
-      console.log('[GRSAI] Request with size:', request.size, 'aspect_ratio:', request.aspect_ratio, 'enhanced_prompt:', enhancedPrompt);
+      console.log('[GRSAI] Request with imageSize:', request.size, 'aspectRatio:', request.aspect_ratio);
       body = {
         model: modelName || 'nano-banana-2',
-        prompt: enhancedPrompt,
-        aspect_ratio: request.aspect_ratio === 'auto' ? '1:1' : request.aspect_ratio,
-        image_size: request.size,
+        prompt: request.prompt,
+        aspectRatio: request.aspect_ratio === 'auto' ? 'auto' : request.aspect_ratio,
+        imageSize: request.size === 'auto' ? '1K' : request.size,
         urls: normalizedReferenceImages.length > 0 ? normalizedReferenceImages : undefined,
-        web_hook: '-1',
-        shut_progress: false,
+        webHook: '-1',
+        shutProgress: false,
       };
     } else {
     throw new Error(`不支持的模型提供商: ${modelProvider}`);

@@ -3,9 +3,9 @@ import { Download, Upload, Folder, AlertCircle, CheckCircle, Star, FileText } fr
 import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { getVersion } from '@tauri-apps/api/app';
 
 const MILESTONE_INFO = {
-  version: '1.2.0',
   name: '首个可用的 AI 生图版本',
   date: '2026-05-09',
   highlights: [
@@ -16,6 +16,7 @@ const MILESTONE_INFO = {
 };
 
 export function DataManagementPanel() {
+  const [appVersion, setAppVersion] = useState<string>('');
   const [dataPath, setDataPath] = useState<DataPathInfo | null>(null);
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -24,6 +25,24 @@ export function DataManagementPanel() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [projectsCount, setProjectsCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadVersion = async () => {
+      try {
+        const version = await getVersion();
+        if (mounted) {
+          setAppVersion(version);
+        }
+      } catch {
+        if (mounted) {
+          setAppVersion('');
+        }
+      }
+    };
+    void loadVersion();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     const loadDataPath = async () => {
@@ -184,7 +203,7 @@ export function DataManagementPanel() {
         <div className="space-y-2 text-xs">
           <div className="flex items-center gap-2 text-text-muted">
             <span>版本:</span>
-            <span className="text-amber-400 font-mono">v{MILESTONE_INFO.version}</span>
+            <span className="text-amber-400 font-mono">v{appVersion || '未知'}</span>
             <span>•</span>
             <span>{MILESTONE_INFO.date}</span>
           </div>
