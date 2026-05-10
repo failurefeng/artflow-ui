@@ -254,11 +254,7 @@
     "missingAnyApiKeyMessage": "您尚未配置任何密钥，请打开设置进行配置。",
     "openProvidersSettings": "打开设置",
     "aboutAppName": "ArtFlow UI",
-<<<<<<< Updated upstream
-    "aboutIntro": "ArtFlow UI - AI 生图移动端应用，简洁高效的创作工具。",
-=======
     "aboutIntro": "基于节点画布的 AI 图片工作台，一站式完成图片生成、编辑与处理流程。",
->>>>>>> Stashed changes
     "aboutVersionLabel": "版本",
     "aboutVersionUnknown": "未知",
     "aboutAuthorLabel": "作者",
