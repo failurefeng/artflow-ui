@@ -75,7 +75,7 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d%H%M)
           BUILD_NUM=${{ github.run_number }}
           ASSET_BASE="artflow-ui-${VERSION}-debug-${TIMESTAMP}"
-          RELEASE_TAG="artflow-ui-${VERSION}-debug-${TIMESTAMP}"
+          RELEASE_TAG="${VERSION}-${TIMESTAMP}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
@@ -84,6 +84,7 @@ jobs:
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           echo "Version: $VERSION, Short SHA: $SHORT_SHA, Timestamp: $TIMESTAMP, Build: #$BUILD_NUM"
           echo "Asset Base: $ASSET_BASE"
+          echo "Release Tag: $RELEASE_TAG"
 
       - name: Rename artifacts
         run: |
