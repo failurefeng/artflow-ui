@@ -285,13 +285,13 @@ export function DataManagementPanel() {
           <h3 className="text-sm font-medium text-text-dark">导入数据</h3>
         </div>
         <p className="text-xs text-text-muted mb-4">
-          从之前导出的备份文件恢复数据。支持 .json 文件。
-        </p>
+              从之前导出的备份文件恢复数据。支持 .json 和 .txt 格式的文件。
+            </p>
         
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json"
+          accept=".json,.txt"
           onChange={handleFileSelect}
           className="hidden"
         />

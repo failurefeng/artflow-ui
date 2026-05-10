@@ -34,6 +34,7 @@ function App() {
   const uiRadiusPreset = useSettingsStore((state) => state.uiRadiusPreset);
   const themeTonePreset = useSettingsStore((state) => state.themeTonePreset);
   const accentColor = useSettingsStore((state) => state.accentColor);
+  const screenOrientationLock = useSettingsStore((state) => state.screenOrientationLock);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialCategory, setSettingsInitialCategory] = useState<SettingsCategory>('general');
   const [globalError, setGlobalError] = useState<GlobalErrorDialogDetail | null>(null);
@@ -83,6 +84,54 @@ function App() {
     root.style.setProperty('--accent', normalized);
     root.style.setProperty('--accent-rgb', toRgbCssValue(normalized));
   }, [accentColor]);
+
+  useEffect(() => {
+    const applyScreenOrientationLock = async () => {
+      try {
+        // 首先检查是否在 Capacitor 环境中
+        const isCapacitor = (window as any).Capacitor !== undefined;
+        
+        if (isCapacitor) {
+          // 使用我们自定义的 ScreenOrientation 插件
+          const ScreenOrientation = (window as any).Capacitor.Plugins.ScreenOrientation;
+          if (ScreenOrientation) {
+            console.log('[App] Applying screen orientation lock via Capacitor plugin:', screenOrientationLock);
+            if (screenOrientationLock === 'auto') {
+              await ScreenOrientation.unlock();
+            } else {
+              await ScreenOrientation.lock({ orientation: screenOrientationLock });
+            }
+            return; // 如果使用了插件，就不使用 Web API
+          }
+        }
+
+        // 回退到 Web API（在某些移动浏览器中可能有效）
+        if ('screen' in window && 'orientation' in screen) {
+          const screenOrientation = screen.orientation as any;
+          if ('lock' in screenOrientation) {
+            console.log('[App] Applying screen orientation lock via Web API:', screenOrientationLock);
+            switch (screenOrientationLock) {
+              case 'portrait':
+                await screenOrientation.lock('portrait-primary');
+                break;
+              case 'landscape':
+                await screenOrientation.lock('landscape-primary');
+                break;
+              case 'auto':
+              default:
+                if ('unlock' in screenOrientation) {
+                  screenOrientation.unlock();
+                }
+                break;
+            }
+          }
+        }
+      } catch (error) {
+        console.log('[App] Screen orientation lock not supported:', error);
+      }
+    };
+    void applyScreenOrientationLock();
+  }, [screenOrientationLock]);
 
   useEffect(() => {
     void hydrate();

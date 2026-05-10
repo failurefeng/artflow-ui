@@ -57,12 +57,12 @@ interface PanelAnchor {
   top: number;
 }
 
-const OTHER_PARAMS_PANEL_CLASS_NAME = 'w-[280px] p-3';
-const DEFAULT_MODEL_PANEL_CLASS_NAME = 'inline-block min-w-[320px] max-w-[calc(100vw-32px)] p-2';
+const OTHER_PARAMS_PANEL_CLASS_NAME = 'w-[220px] p-2';
+const DEFAULT_MODEL_PANEL_CLASS_NAME = 'inline-block min-w-[240px] max-w-[calc(100vw-32px)] p-2';
 const DEFAULT_PROVIDER_OPTION_CLASS_NAME =
-  'min-w-[92px] px-3 text-center';
+  'min-w-[70px] px-2 text-center text-[11px]';
 const DEFAULT_MODEL_OPTION_CLASS_NAME =
-  'min-h-9 min-w-[128px] max-w-full justify-center px-3 py-2 text-center';
+  'min-h-7 min-w-[90px] max-w-full justify-center px-2 py-1 text-center text-[11px]';
 
 function NanoBananaIcon({ className = '' }: { className?: string }) {
   return (
@@ -161,7 +161,7 @@ export const ModelParamsControls = memo(({
   modelPanelAlign = 'center',
   paramsPanelAlign = 'center',
   modelPanelClassName = DEFAULT_MODEL_PANEL_CLASS_NAME,
-  paramsPanelClassName = 'w-[420px] p-3',
+  paramsPanelClassName = 'w-[280px] p-2',
   providerOptionClassName = DEFAULT_PROVIDER_OPTION_CLASS_NAME,
   modelOptionClassName = DEFAULT_MODEL_OPTION_CLASS_NAME,
   draggable = false,
@@ -532,18 +532,18 @@ export const ModelParamsControls = memo(({
             </div>
           )}
           <UiPanel className={modelPanelClassName}>
-            <div className="ui-scrollbar max-h-[340px] space-y-4 overflow-y-auto p-1">
+            <div className="ui-scrollbar max-h-[280px] space-y-3 overflow-y-auto p-1">
               <section>
-                <div className="mb-2 text-xs font-medium text-text-muted">
+                <div className="mb-1 text-[11px] font-medium text-text-muted">
                   {t('modelParams.provider')}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {providerOptions.map((provider) => {
                     const active = provider.id === panelProviderId;
                     return (
                       <button
                         key={provider.id}
-                        className={`h-8 rounded-lg border text-xs transition-colors ${providerOptionClassName} ${active
+                        className={`h-7 rounded-md border transition-colors ${providerOptionClassName} ${active
                           ? 'border-accent/50 bg-accent/15 text-text-dark'
                           : 'border-[rgba(255,255,255,0.12)] bg-bg-dark/65 text-text-muted hover:border-[rgba(255,255,255,0.2)]'
                           }`}
@@ -572,10 +572,10 @@ export const ModelParamsControls = memo(({
               </section>
 
               <section>
-                <div className="mb-2 text-xs font-medium text-text-muted">
+                <div className="mb-1 text-[11px] font-medium text-text-muted">
                   {t('modelParams.model')}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {modelGroups.map((group) => {
                     const active = group.models.some((model) => model.id === selectedModel.id);
                     const targetModel = group.models.find((model) => model.id === selectedModel.id)
@@ -583,7 +583,7 @@ export const ModelParamsControls = memo(({
                     return (
                       <button
                         key={group.name}
-                        className={`inline-flex max-w-full items-center rounded-lg border text-xs leading-4 transition-colors ${modelOptionClassName} ${active
+                        className={`inline-flex max-w-full items-center rounded-md border leading-3 transition-colors ${modelOptionClassName} ${active
                           ? 'border-accent/50 bg-accent/15 text-text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                           : 'border-[rgba(255,255,255,0.12)] bg-bg-dark/65 text-text-muted hover:border-[rgba(255,255,255,0.2)] hover:bg-[rgba(255,255,255,0.05)]'
                           }`}
@@ -635,14 +635,14 @@ export const ModelParamsControls = memo(({
           )}
           <UiPanel className={paramsPanelClassName}>
             <div>
-              <div className="mb-2 text-xs text-text-muted">{t('modelParams.quality')}</div>
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
+              <div className="mb-1 text-[11px] text-text-muted">{t('modelParams.quality')}</div>
+              <div className="grid grid-cols-4 gap-0.5 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
                 {resolutionOptions.map((item) => {
                   const active = item.value === selectedResolution.value;
                   return (
                     <button
                       key={item.value}
-                      className={`h-8 rounded-lg text-sm transition-colors ${active
+                      className={`h-7 rounded-md text-[11px] transition-colors ${active
                         ? 'bg-surface-dark text-text-dark'
                         : 'text-text-muted hover:bg-bg-dark'
                         }`}
@@ -658,9 +658,9 @@ export const ModelParamsControls = memo(({
               </div>
             </div>
 
-            <div className="mt-3">
-              <div className="mb-2 text-xs text-text-muted">{t('modelParams.aspectRatio')}</div>
-              <div className="grid grid-cols-5 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
+            <div className="mt-2">
+              <div className="mb-1 text-[11px] text-text-muted">{t('modelParams.aspectRatio')}</div>
+              <div className="grid grid-cols-5 gap-0.5 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
                 {aspectRatioOptions.map((item) => {
                   const active = item.value === selectedAspectRatio.value;
                   const previewStyle = getRatioPreviewStyle(
@@ -670,7 +670,7 @@ export const ModelParamsControls = memo(({
                   return (
                     <button
                       key={item.value}
-                      className={`rounded-lg px-1 py-1.5 transition-colors ${active
+                      className={`rounded-md px-0.5 py-1 transition-colors ${active
                         ? 'bg-surface-dark text-text-dark'
                         : 'text-text-muted hover:bg-bg-dark'
                         }`}
@@ -679,17 +679,17 @@ export const ModelParamsControls = memo(({
                         onAspectRatioChange(item.value);
                       }}
                     >
-                      <div className="mb-1 flex h-6 items-center justify-center">
+                      <div className="mb-0.5 flex h-5 items-center justify-center">
                         {item.value === AUTO_REQUEST_ASPECT_RATIO ? (
-                          <Zap className="h-3 w-3" strokeWidth={2.4} />
+                          <Zap className="h-2.5 w-2.5" strokeWidth={2.4} />
                         ) : (
                           <span
-                            className="inline-block rounded-[3px] border border-current/60"
+                            className="inline-block rounded-[2px] border border-current/60"
                             style={previewStyle}
                           />
                         )}
                       </div>
-                      <div className="text-[10px]">{item.label}</div>
+                      <div className="text-[9px]">{item.label}</div>
                     </button>
                   );
                 })}
@@ -697,9 +697,9 @@ export const ModelParamsControls = memo(({
             </div>
 
             {panelExtraParamSchema.length > 0 && (
-              <div className="mt-3">
-                <div className="mb-2 text-xs text-text-muted">{t('modelParams.extraOptions')}</div>
-                <div className="space-y-2 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-3">
+              <div className="mt-2">
+                <div className="mb-1 text-[11px] text-text-muted">{t('modelParams.extraOptions')}</div>
+                <div className="space-y-1.5 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-2">
                   {panelExtraParamSchema.map((definition) => {
                     const translatedLabel = resolveTranslatedText(
                       t,
@@ -721,11 +721,11 @@ export const ModelParamsControls = memo(({
                     );
 
                     return (
-                      <div key={definition.key} className="space-y-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-black/10 p-2">
+                      <div key={definition.key} className="space-y-1 rounded-md border border-[rgba(255,255,255,0.08)] bg-black/10 p-1.5">
                         <div>
-                          <div className="text-xs font-medium text-text-dark">{translatedLabel}</div>
+                          <div className="text-[11px] font-medium text-text-dark">{translatedLabel}</div>
                           {translatedDescription && (
-                            <div className="mt-0.5 text-[11px] leading-4 text-text-muted">
+                            <div className="mt-0.5 text-[10px] leading-3 text-text-muted">
                               {translatedDescription}
                             </div>
                           )}
@@ -737,7 +737,7 @@ export const ModelParamsControls = memo(({
                             onChange={(event) =>
                               onExtraParamChange?.(definition.key, event.target.value)
                             }
-                            className="h-9 text-sm"
+                            className="h-7 text-[11px]"
                           >
                             {definition.options.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -748,12 +748,13 @@ export const ModelParamsControls = memo(({
                         )}
 
                         {definition.type === 'boolean' && (
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-text-dark">
+                          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-text-dark">
                             <UiCheckbox
                               checked={Boolean(resolvedValue)}
                               onCheckedChange={(checked) =>
                                 onExtraParamChange?.(definition.key, checked)
                               }
+                              className="h-4 w-4"
                             />
                             <span>{translatedLabel}</span>
                           </label>
@@ -769,7 +770,7 @@ export const ModelParamsControls = memo(({
                             onChange={(event) =>
                               onExtraParamChange?.(definition.key, Number(event.target.value))
                             }
-                            className="h-9 text-sm"
+                            className="h-7 text-[11px]"
                           />
                         )}
 
@@ -779,7 +780,7 @@ export const ModelParamsControls = memo(({
                             onChange={(event) =>
                               onExtraParamChange?.(definition.key, event.target.value)
                             }
-                            className="h-9 text-sm"
+                            className="h-7 text-[11px]"
                           />
                         )}
                       </div>

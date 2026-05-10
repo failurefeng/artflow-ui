@@ -121,6 +121,7 @@ export function SettingsDialog({
     canvasEdgeRoutingMode,
     autoCheckAppUpdateOnLaunch,
     enableUpdateDialog,
+    screenOrientationLock,
     setProviderApiKey,
     setGrsaiNanoBananaProModel,
     setDownloadPresetPaths,
@@ -142,6 +143,7 @@ export function SettingsDialog({
     setCanvasEdgeRoutingMode,
     setAutoCheckAppUpdateOnLaunch,
     setEnableUpdateDialog,
+    setScreenOrientationLock,
   } = useSettingsStore();
   const providers = useMemo(() => {
     const providerOrder = ['kie', 'ppio', 'fal', 'grsai'];
@@ -196,6 +198,7 @@ export function SettingsDialog({
     autoCheckAppUpdateOnLaunch
   );
   const [localEnableUpdateDialog, setLocalEnableUpdateDialog] = useState(enableUpdateDialog);
+  const [localScreenOrientationLock, setLocalScreenOrientationLock] = useState(screenOrientationLock);
   const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
   const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
@@ -245,6 +248,7 @@ export function SettingsDialog({
     setLocalCanvasEdgeRoutingMode(canvasEdgeRoutingMode);
     setLocalAutoCheckAppUpdateOnLaunch(autoCheckAppUpdateOnLaunch);
     setLocalEnableUpdateDialog(enableUpdateDialog);
+    setLocalScreenOrientationLock(screenOrientationLock);
     setCheckUpdateStatus('');
     setRevealedApiKeys({});
     setLocalDownloadPathInput('');
@@ -296,6 +300,7 @@ export function SettingsDialog({
     setCanvasEdgeRoutingMode(localCanvasEdgeRoutingMode);
     setAutoCheckAppUpdateOnLaunch(localAutoCheckAppUpdateOnLaunch);
     setEnableUpdateDialog(localEnableUpdateDialog);
+    setScreenOrientationLock(localScreenOrientationLock);
     onClose();
   }, [
     localApiKeys,
@@ -893,6 +898,22 @@ export function SettingsDialog({
                     title={t('settings.useUploadFilenameAsNodeTitle')}
                     description={t('settings.useUploadFilenameAsNodeTitleDesc')}
                   />
+
+                  <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
+                    <div className="mb-3">
+                      <h3 className="text-sm font-medium text-text-dark">屏幕旋转锁定</h3>
+                      <p className="mt-1 text-xs text-text-muted">控制应用在手机上的屏幕旋转行为</p>
+                    </div>
+                    <UiSelect
+                      value={localScreenOrientationLock}
+                      onChange={(event) => setLocalScreenOrientationLock(event.target.value as 'auto' | 'portrait' | 'landscape')}
+                      className="h-9 text-sm w-full"
+                    >
+                      <option value="auto">自动旋转（跟随系统设置）</option>
+                      <option value="portrait">锁定竖屏</option>
+                      <option value="landscape">锁定横屏</option>
+                    </UiSelect>
+                  </div>
 
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <div className="mb-3">
