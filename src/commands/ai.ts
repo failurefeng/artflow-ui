@@ -297,7 +297,16 @@ export async function exportData(): Promise<string> {
       let projects: unknown[] = [];
       try {
         const summaries = await webProjectGateway.listProjectSummaries();
-        const projectRecords = [];
+        const projectRecords: Array<{
+          id: string;
+          name: string;
+          created_at: number;
+          updated_at: number;
+          nodes_json: string;
+          edges_json: string;
+          viewport_json: string;
+          history_json: string;
+        }> = [];
         for (const summary of summaries) {
           const record = await webProjectGateway.getProjectRecord(summary.id);
           if (record) {
