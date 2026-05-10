@@ -44,7 +44,7 @@ function App() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const closeProject = useProjectStore((state) => state.closeProject);
 
-  const { overlayRef, indicatorRef, isSwiping, swipeProgress } = useSwipeBack(closeProject, Boolean(currentProjectId));
+  const { overlayRef, indicatorRef } = useSwipeBack(closeProject, Boolean(currentProjectId));
 
   useEffect(() => {
     const initCapacitorStatusBar = async () => {
