@@ -292,6 +292,7 @@ export function Canvas() {
   const deleteNode = useCanvasStore((state) => state.deleteNode);
   const deleteNodes = useCanvasStore((state) => state.deleteNodes);
   const groupNodes = useCanvasStore((state) => state.groupNodes);
+  const duplicateNode = useCanvasStore((state) => state.duplicateNode);
   const undo = useCanvasStore((state) => state.undo);
   const redo = useCanvasStore((state) => state.redo);
   const openToolDialog = useCanvasStore((state) => state.openToolDialog);
@@ -357,12 +358,17 @@ export function Canvas() {
     const unsubscribeClose = canvasEventBus.subscribe('tool-dialog/close', () => {
       closeToolDialog();
     });
+    const unsubscribeCopy = canvasEventBus.subscribe('node/copy', (payload) => {
+      const { nodeId } = payload as { nodeId: string };
+      duplicateNode(nodeId);
+    });
 
     return () => {
       unsubscribeOpen();
       unsubscribeClose();
+      unsubscribeCopy();
     };
-  }, [openToolDialog, closeToolDialog]);
+  }, [openToolDialog, closeToolDialog, duplicateNode]);
 
   useEffect(() => {
     isRestoringCanvasRef.current = true;

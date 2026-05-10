@@ -283,6 +283,7 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
     try {
       const isMobile = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
       const fileName = `storyboard_${node.id}_${Date.now()}.png`;
+      let savedPath = '';
       
       if (isMobile) {
         let imageData = imageSource;
@@ -302,7 +303,9 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
           data: base64Data,
           directory: Directory.Documents,
         });
-        console.log('[Download] Image saved to Documents/' + fileName);
+        savedPath = `Documents/${fileName}`;
+        console.log('[Download] Image saved to ' + savedPath);
+        alert(`图片下载成功！\n保存路径：${savedPath}`);
       } else {
         const selectedPath = await save({
           defaultPath: fileName,
@@ -311,10 +314,13 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
           return;
         }
         await saveImageSourceToPath(imageSource, selectedPath);
+        savedPath = selectedPath;
+        alert(`图片下载成功！\n保存路径：${savedPath}`);
       }
       closeDownloadMenu();
     } catch (error) {
       console.error('Failed to save image', error);
+      alert(`图片下载失败！\n错误信息：${error instanceof Error ? error.message : String(error)}`);
     }
   }, [closeDownloadMenu, imageSource, node.id]);
 
@@ -481,6 +487,20 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
             {t('nodeToolbar.ungroup')}
           </UiChipButton>
         )}
+        <UiChipButton
+          key="node-copy"
+          className={`h-8 ${TOOLBAR_BUTTON_RADIUS_CLASS} px-2.5 text-xs ${TOOLBAR_NEUTRAL_BUTTON_CLASS}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            closeDownloadMenu();
+            canvasEventBus.publish('node/copy', {
+              nodeId: node.id,
+            });
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {t('nodeToolbar.copyNode')}
+        </UiChipButton>
         <UiChipButton
           key="node-delete"
           className={`h-8 ${TOOLBAR_BUTTON_RADIUS_CLASS} border-red-500/45 bg-red-500/15 px-2.5 text-xs text-red-300 hover:bg-red-500/25`}

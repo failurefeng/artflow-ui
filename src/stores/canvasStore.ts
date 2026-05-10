@@ -90,6 +90,7 @@ interface CanvasState {
     position: { x: number; y: number },
     data?: Partial<CanvasNodeData>
   ) => string;
+  duplicateNode: (nodeId: string) => string | null;
   addEdge: (source: string, target: string) => string | null;
   findNodePosition: (sourceNodeId: string, newNodeWidth: number, newNodeHeight: number) => { x: number; y: number };
   addDerivedUploadNode: (
@@ -758,6 +759,40 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       },
       dragHistorySnapshot: null,
     });
+    return newNode.id;
+  },
+
+  duplicateNode: (nodeId) => {
+    const state = get();
+    const sourceNode = state.nodes.find((n) => n.id === nodeId);
+    if (!sourceNode) {
+      return null;
+    }
+
+    const newPosition = {
+      x: sourceNode.position.x + 50,
+      y: sourceNode.position.y + 50,
+    };
+
+    const clonedData = JSON.parse(JSON.stringify(sourceNode.data));
+    delete clonedData.imageUrl;
+    delete clonedData.previewImageUrl;
+    delete clonedData.generationJobId;
+    delete clonedData.generationError;
+    delete clonedData.generationErrorDetails;
+    delete clonedData.generationDebugContext;
+
+    const newNode = canvasNodeFactory.createNode(sourceNode.type, newPosition, clonedData);
+    
+    set({
+      nodes: [...state.nodes, newNode],
+      history: {
+        past: pushSnapshot(state.history.past, createSnapshot(state.nodes, state.edges)),
+        future: [],
+      },
+      dragHistorySnapshot: null,
+    });
+    
     return newNode.id;
   },
 

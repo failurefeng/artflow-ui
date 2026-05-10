@@ -83,6 +83,9 @@ export interface CanvasEventMap {
     toolType: NodeToolType;
   };
   'tool-dialog/close': undefined;
+  'node/copy': {
+    nodeId: string;
+  };
   'upload-node/reupload': {
     nodeId: string;
   };
