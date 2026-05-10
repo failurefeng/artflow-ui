@@ -1,12 +1,12 @@
 [package]
-name = "storyboard-copilot"
+name = "artflow-ui"
 version = "0.1.13"
-description = "分镜助手 - AI图像生成与分镜工具"
+description = "ArtFlow UI - AI图像生成与分镜工具"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "storyboard_copilot_lib"
+name = "artflow_ui_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

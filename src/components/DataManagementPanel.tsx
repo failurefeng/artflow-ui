@@ -4,8 +4,10 @@ import { getDataPath, exportData, importData, DataPathInfo } from '@/commands/ai
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { useSettingsStore } from '@/stores/settingsStore';
 
+const pkg = require('../../package.json');
+
 const MILESTONE_INFO = {
-  version: '1.2.0',
+  version: pkg.version,
   name: '首个可用的 AI 生图版本',
   date: '2026-05-09',
   highlights: [
