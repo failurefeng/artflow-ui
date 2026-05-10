@@ -63,20 +63,17 @@ jobs:
         id: version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          SHORT_SHA=${GITHUB_SHA:0:7}
-          TIMESTAMP=$(date +%Y%m%d%H%M)
           BUILD_NUM=${{ github.run_number }}
-          ASSET_BASE="artflow-ui-${VERSION}-debug-build${BUILD_NUM}"
-          RELEASE_TAG="${VERSION}"
+          BUILD_TYPE="debug"
+          TAG_NAME="artflow-ui-${VERSION}-${BUILD_TYPE}-build${BUILD_NUM}"
+          ASSET_BASE="artflow-ui-${VERSION}-${BUILD_TYPE}-build${BUILD_NUM}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
           echo "build_num=$BUILD_NUM" >> $GITHUB_OUTPUT
+          echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "asset_base=$ASSET_BASE" >> $GITHUB_OUTPUT
-          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION, Short SHA: $SHORT_SHA, Build: #$BUILD_NUM"
-          echo "Asset Base: $ASSET_BASE"
-          echo "Release Tag: $RELEASE_TAG"
+          echo "Version: $VERSION, Type: $BUILD_TYPE, Build: #$BUILD_NUM"
+          echo "Tag Name: $TAG_NAME"
 
       - name: Create source archive
         run: |
@@ -89,7 +86,7 @@ jobs:
       - name: Check if release already exists
         id: check_release
         run: |
-          TAG_NAME="v${{ steps.version.outputs.version }}"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             echo "release_exists=true" >> $GITHUB_OUTPUT
             echo "Release $TAG_NAME already exists"
@@ -107,10 +104,14 @@ jobs:
         if: success() && steps.check_release.outputs.release_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v${{ steps.version.outputs.version }}"
-          name: "ArtFlow UI v${{ steps.version.outputs.version }}"
+          tag_name: "${{ steps.version.outputs.tag_name }}"
+          name: "ArtFlow UI ${{ steps.version.outputs.tag_name }}"
           body: |
-            ArtFlow UI v${{ steps.version.outputs.version }} - Build #${{ steps.version.outputs.build_num }}
+            ArtFlow UI Build #${{ steps.version.outputs.build_num }}
+
+            Version: ${{ steps.version.outputs.version }}
+            Type: ${{ steps.version.outputs.build_type }}
+            Build: #${{ steps.version.outputs.build_num }}
 
             Commit: ${{ github.sha }}
 
@@ -125,6 +126,6 @@ jobs:
       - name: Upload to existing Release
         if: success() && steps.check_release.outputs.release_exists == 'true'
         run: |
-          TAG_NAME="v${{ steps.version.outputs.version }}"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
           echo "Uploading assets to existing release $TAG_NAME..."
           gh release upload "$TAG_NAME" ${{ steps.version.outputs.asset_base }}.apk source.tar.gz --clobber
