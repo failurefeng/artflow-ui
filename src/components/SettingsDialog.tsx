@@ -4,10 +4,10 @@ import { Trans, useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useSettingsStore } from '@/stores/settingsStore';
+import packageJson from '../../package.json';
 import { UiCheckbox, UiSelect } from '@/components/ui';
 import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
 import { useDialogTransition } from '@/components/ui/useDialogTransition';
@@ -157,8 +157,10 @@ export function SettingsDialog({
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const [appVersion, setAppVersion] = useState<string>('');
-  const [localApiKeys, setLocalApiKeys] = useState<Record<string, string>>(apiKeys);
+  const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
+  const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
+  const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
+  const appVersion = packageJson.version;
   const [localGrsaiNanoBananaProModel, setLocalGrsaiNanoBananaProModel] = useState(
     grsaiNanoBananaProModel
   );
@@ -199,29 +201,6 @@ export function SettingsDialog({
   );
   const [localEnableUpdateDialog, setLocalEnableUpdateDialog] = useState(enableUpdateDialog);
   const [localScreenOrientationLock, setLocalScreenOrientationLock] = useState(screenOrientationLock);
-  const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
-  const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
-  const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
-
-  useEffect(() => {
-    let mounted = true;
-    const loadAppVersion = async () => {
-      try {
-        const version = await getVersion();
-        if (mounted) {
-          setAppVersion(version);
-        }
-      } catch {
-        if (mounted) {
-          setAppVersion('');
-        }
-      }
-    };
-    void loadAppVersion();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1070,12 +1049,12 @@ export function SettingsDialog({
                     <p className="text-text-dark">
                       {t('settings.aboutRepositoryLabel')}:{' '}
                       <a
-                        href="https://github.com/failurefeng/Storyboard-Copilot"
+                        href="https://github.com/failurefeng/artflow-ui"
                         target="_blank"
                         rel="noreferrer"
                         className="text-accent hover:underline break-all"
                       >
-                        https://github.com/failurefeng/Storyboard-Copilot
+                        https://github.com/failurefeng/artflow-ui
                       </a>
                     </p>
                   </div>
