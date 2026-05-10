@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SlidersHorizontal, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -185,50 +185,7 @@ export const ModelParamsControls = memo(({
   const [otherParamsAnchorBaseWidth, setOtherParamsAnchorBaseWidth] = useState<number | null>(null);
   const [panelProviderId, setPanelProviderId] = useState(selectedModel.providerId);
   const [missingKeyProviderName, setMissingKeyProviderName] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [customPosition, setCustomPosition] = useState<PanelAnchor | null>(null);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
-
-  const handlePanelDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!draggable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    setDragOffset({ x: clientX, y: clientY });
-    setIsDragging(true);
-  }, [draggable]);
-
-  const handlePanelDrag = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !draggable) return;
-    e.preventDefault();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    setCustomPosition({
-      left: clientX - dragOffset.x,
-      top: clientY - dragOffset.y,
-    });
-  }, [isDragging, dragOffset, draggable]);
-
-  const handlePanelDragEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handlePanelDrag);
-      document.addEventListener('mouseup', handlePanelDragEnd);
-      document.addEventListener('touchmove', handlePanelDrag, { passive: false });
-      document.addEventListener('touchend', handlePanelDragEnd);
-    }
-    return () => {
-      document.removeEventListener('mousemove', handlePanelDrag);
-      document.removeEventListener('mouseup', handlePanelDragEnd);
-      document.removeEventListener('touchmove', handlePanelDrag);
-      document.removeEventListener('touchend', handlePanelDragEnd);
-    };
-  }, [isDragging, handlePanelDrag, handlePanelDragEnd]);
 
   const selectedProvider = useMemo(
     () => getModelProvider(selectedModel.providerId),
@@ -393,14 +350,19 @@ export const ModelParamsControls = memo(({
     align: 'center' | 'start',
     baseWidth?: number | null
   ): PanelAnchor | null => {
-    if (!triggerElement) {
+    if (!triggerElement || !containerRef.current) {
       return null;
     }
-    const rect = triggerElement.getBoundingClientRect();
-    const anchorWidth = typeof baseWidth === 'number' && baseWidth > 0 ? baseWidth : rect.width;
+    const triggerRect = triggerElement.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const anchorWidth = typeof baseWidth === 'number' && baseWidth > 0 ? baseWidth : triggerRect.width;
+    
+    // 计算相对于容器的位置
+    const relativeLeft = triggerRect.left - containerRect.left;
+    
     return {
-      left: align === 'center' ? rect.left + anchorWidth / 2 : rect.left,
-      top: rect.top - 8,
+      left: align === 'center' ? relativeLeft + anchorWidth / 2 : relativeLeft,
+      top: 0,
     };
   };
 
@@ -414,14 +376,16 @@ export const ModelParamsControls = memo(({
 
     const xTransform = align === 'center' ? 'translateX(-50%) ' : '';
     return {
+      position: 'absolute',
       left: anchor.left,
-      top: anchor.top,
-      transform: `${xTransform}translateY(-100%)`,
+      bottom: '100%',
+      marginBottom: '8px',
+      transform: `${xTransform}`,
     };
   };
 
   return (
-    <div ref={containerRef} className="flex items-center gap-1">
+    <div ref={containerRef} className="relative flex items-center gap-1">
       <div ref={modelTriggerRef} className="relative flex">
         <UiChipButton
           active={openPanel === 'model'}
@@ -503,28 +467,11 @@ export const ModelParamsControls = memo(({
         </div>
       )}
 
-      {typeof document !== 'undefined' && renderPanel === 'model' && createPortal(
+      {renderPanel === 'model' && (
         <div
           ref={modelPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
-          style={{
-            ...buildPanelStyle(
-              draggable && customPosition 
-                ? { left: customPosition.left, top: customPosition.top } 
-                : modelPanelAnchor, 
-              modelPanelAlign
-            ),
-            transform: draggable && customPosition 
-              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
-              : undefined,
-            ...(draggable ? { left: 0, top: 0 } : {}),
-          }}
-          onMouseDown={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
-          onTouchStart={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
+          className={`absolute z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          style={buildPanelStyle(modelPanelAnchor, modelPanelAlign)}
         >
           {draggable && (
             <div className="flex justify-center py-1">
@@ -601,32 +548,14 @@ export const ModelParamsControls = memo(({
               </section>
             </div>
           </UiPanel>
-        </div>,
-        document.body
+        </div>
       )}
 
-      {typeof document !== 'undefined' && renderPanel === 'params' && createPortal(
+      {renderPanel === 'params' && (
         <div
           ref={paramsPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
-          style={{
-            ...buildPanelStyle(
-              draggable && customPosition 
-                ? { left: customPosition.left, top: customPosition.top } 
-                : paramsPanelAnchor, 
-              paramsPanelAlign
-            ),
-            transform: draggable && customPosition 
-              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
-              : undefined,
-            ...(draggable ? { left: 0, top: 0 } : {}),
-          }}
-          onMouseDown={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
-          onTouchStart={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
+          className={`absolute z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          style={buildPanelStyle(paramsPanelAnchor, paramsPanelAlign)}
         >
           {draggable && (
             <div className="flex justify-center py-1">
@@ -790,32 +719,14 @@ export const ModelParamsControls = memo(({
               </div>
             )}
           </UiPanel>
-        </div>,
-        document.body
+        </div>
       )}
 
-      {typeof document !== 'undefined' && renderPanel === 'otherParams' && createPortal(
+      {renderPanel === 'otherParams' && (
         <div
           ref={otherParamsPanelRef}
-          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'} ${draggable ? 'cursor-move' : ''}`}
-          style={{
-            ...buildPanelStyle(
-              draggable && customPosition 
-                ? { left: customPosition.left, top: customPosition.top } 
-                : otherParamsPanelAnchor, 
-              'center'
-            ),
-            transform: draggable && customPosition 
-              ? `translate(${customPosition.left}px, ${customPosition.top}px) translateY(-100%)` 
-              : undefined,
-            ...(draggable ? { left: 0, top: 0 } : {}),
-          }}
-          onMouseDown={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
-          onTouchStart={(e) => {
-            if (draggable) handlePanelDragStart(e);
-          }}
+          className={`absolute z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          style={buildPanelStyle(otherParamsPanelAnchor, 'center')}
         >
           {draggable && (
             <div className="flex justify-center py-1">
@@ -884,8 +795,7 @@ export const ModelParamsControls = memo(({
               })}
             </div>
           </UiPanel>
-        </div>,
-        document.body
+        </div>
       )}
 
       {typeof document !== 'undefined' && createPortal(

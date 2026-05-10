@@ -238,6 +238,15 @@ async function callGenerationAPI(request: {
   }
 
   const normalizedReferenceImages = request.reference_images ?? [];
+  
+  // 在提示词末尾添加分辨率和比例信息
+  let enhancedPrompt = request.prompt;
+  if (request.size && request.size !== 'auto') {
+    enhancedPrompt += `, ${request.size} resolution`;
+  }
+  if (request.aspect_ratio && request.aspect_ratio !== 'auto') {
+    enhancedPrompt += `, ${request.aspect_ratio} aspect ratio`;
+  }
 
   let endpoint = '';
   let body: Record<string, unknown> = {};
@@ -247,7 +256,7 @@ async function callGenerationAPI(request: {
     body = {
       model: modelName,
       base64_data: normalizedReferenceImages[0] ?? null,
-      text_to_image_prompt: request.prompt,
+      text_to_image_prompt: enhancedPrompt,
       image_size: request.size,
       ...(request.extra_params ?? {}),
     };
@@ -255,7 +264,7 @@ async function callGenerationAPI(request: {
     endpoint = 'https://api.ppio.ai/v1/image/generate';
     body = {
       model: modelName,
-      prompt: request.prompt,
+      prompt: enhancedPrompt,
       aspect_ratio: request.aspect_ratio,
       ref_img: normalizedReferenceImages[0] ?? null,
       ...(request.extra_params ?? {}),
@@ -263,16 +272,16 @@ async function callGenerationAPI(request: {
   } else if (modelProvider === 'fal') {
     endpoint = 'https://queue.fal.run/fal-ai/' + modelName;
     body = {
-      prompt: request.prompt,
+      prompt: enhancedPrompt,
       image_size: request.size,
       ...(request.extra_params ?? {}),
     };
   } else if (modelProvider === 'grsai') {
       endpoint = 'https://grsai.dakka.com.cn/v1/draw/nano-banana';
-      console.log('[GRSAI] Request with size:', request.size, 'aspect_ratio:', request.aspect_ratio);
+      console.log('[GRSAI] Request with size:', request.size, 'aspect_ratio:', request.aspect_ratio, 'enhanced_prompt:', enhancedPrompt);
       body = {
         model: modelName || 'nano-banana-2',
-        prompt: request.prompt,
+        prompt: enhancedPrompt,
         aspect_ratio: request.aspect_ratio === 'auto' ? '1:1' : request.aspect_ratio,
         image_size: request.size,
         urls: normalizedReferenceImages.length > 0 ? normalizedReferenceImages : undefined,
