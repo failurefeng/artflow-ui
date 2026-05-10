@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ArtFlow UI</string>
+    <string name="title_activity_main">ArtFlow UI</string>
+    <string name="package_name">com.artflow.ui</string>
+    <string name="custom_url_scheme">com.artflow.ui</string>
+</resources>

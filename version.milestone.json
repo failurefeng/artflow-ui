@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "milestone": {
+    "isKeep": true,
+    "name": "ArtFlow UI 首个版本",
+    "description": "这是 ArtFlow UI 移动端的第一个版本。",
+    "date": "2026-05-10",
+    "highlights": [
+      "✅ 项目重命名为 ArtFlow UI",
+      "✅ 支持 KIE、PPIO、FAL、GRSai 等多种 AI 模型提供商",
+      "✅ 节点画布编辑功能",
+      "✅ 分镜切割工具"
+    ],
+    "breakingChanges": [],
+    "dataMigration": {
+      "note": "此版本开始支持数据导出/导入功能",
+      "exportPath": "artflow_data.json"
+    }
+  }
+}

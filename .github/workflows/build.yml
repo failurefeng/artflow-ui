@@ -1,0 +1,126 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '21'
+  VERSION: 'v0.0.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Capacitor
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Build debug APK
+        working-directory: ./android
+        run: ./gradlew assembleDebug
+
+      - name: Rename APK with version and type
+        id: rename_apk
+        run: |
+          BUILD_NUMBER=${{ github.run_number }}
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          NEW_APK_NAME="artflow-ui-${{ env.VERSION }}-debug-build${BUILD_NUMBER}.apk"
+          cp "$APK_PATH" "$NEW_APK_NAME"
+          echo "APK_SIZE=$(stat -c%s "$NEW_APK_NAME")" >> $GITHUB_OUTPUT
+          echo "APK_NAME=$NEW_APK_NAME" >> $GITHUB_OUTPUT
+          echo "Renamed APK to: $NEW_APK_NAME"
+          ls -la "$NEW_APK_NAME"
+
+      - name: Verify APK exists
+        id: verify
+        run: |
+          echo "Checking APK..."
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            echo "APK found!"
+            ls -la "$APK_PATH"
+          else
+            echo "ERROR: APK not found!"
+            exit 1
+          fi
+
+      - name: Create source archive
+        run: |
+          find . -maxdepth 1 -type f -not -name 'source.tar.gz' -not -name '*.tar.gz' -not -name '*.zip' -print > files_to_archive.txt
+          find . -maxdepth 1 -type d \( -name '.git' -o -name 'node_modules' -o -name 'dist' -o -name 'android' -o -name '.github' -o -name '.gitignore' -o -name '*.tar.gz' -o -name '*.zip' \) -prune -o -type f -print >> files_to_archive.txt 2>/dev/null
+          tar -czf source.tar.gz -T files_to_archive.txt
+          rm -f files_to_archive.txt
+          ls -la source.tar.gz
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          TAG_NAME="${{ env.VERSION }}-b${{ github.run_number }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG_NAME already exists, will skip release creation"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG_NAME does not exist, will create new release"
+          fi
+
+      - name: Create Release with Tag
+        if: success() && steps.check_tag.outputs.tag_exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "${{ env.VERSION }}-b${{ github.run_number }}"
+          name: "ArtFlow UI ${{ env.VERSION }} (Build ${{ github.run_number }})"
+          body: |
+            ArtFlow UI Android Build
+
+            Version: ${{ env.VERSION }}
+            Build: ${{ github.run_number }}
+            Commit: ${{ github.sha }}
+
+            APK Size: ${{ env.APK_SIZE }} bytes
+          files: |
+            ${{ steps.rename_apk.outputs.APK_NAME }}
+            source.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to existing Release
+        if: success() && steps.check_tag.outputs.tag_exists == 'true'
+        run: |
+          echo "Tag already exists. Checking for existing release..."
+          TAG_NAME="${{ env.VERSION }}-b${{ github.run_number }}"
+          RELEASE_ID=$(gh release view "$TAG_NAME" --json id --jq .id 2>/dev/null || echo "")
+          if [ -n "$RELEASE_ID" ]; then
+            echo "Uploading assets to existing release $RELEASE_ID..."
+            gh release upload "$TAG_NAME" ${{ steps.verify.outputs.APK_NAME }} source.tar.gz --clobber
+          else
+            echo "Release not found, creating new one..."
+            gh release create "$TAG_NAME" ${{ steps.rename_apk.outputs.APK_NAME }} source.tar.gz --title "ArtFlow UI ${{ env.VERSION }} (Build ${{ github.run_number }})"
+          fi
