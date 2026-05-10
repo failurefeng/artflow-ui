@@ -59,14 +59,6 @@ jobs:
             exit 1
           fi
 
-      - name: Create source archive
-        run: |
-          find . -maxdepth 1 -type f -not -name 'source.tar.gz' -not -name '*.tar.gz' -not -name '*.zip' -print > files_to_archive.txt
-          find . -maxdepth 1 -type d \( -name '.git' -o -name 'node_modules' -o -name 'dist' -o -name 'android' -o -name '.github' -o -name '.gitignore' -o -name '*.tar.gz' -o -name '*.zip' \) -prune -o -type f -print >> files_to_archive.txt 2>/dev/null
-          tar -czf source.tar.gz -T files_to_archive.txt
-          rm -f files_to_archive.txt
-          ls -la source.tar.gz
-
       - name: Get version and build info
         id: version
         run: |
@@ -74,55 +66,65 @@ jobs:
           SHORT_SHA=${GITHUB_SHA:0:7}
           TIMESTAMP=$(date +%Y%m%d%H%M)
           BUILD_NUM=${{ github.run_number }}
-          ASSET_BASE="artflow-ui-${VERSION}-debug-${TIMESTAMP}"
-          RELEASE_TAG="${VERSION}-${TIMESTAMP}"
+          ASSET_BASE="artflow-ui-${VERSION}-debug-build${BUILD_NUM}"
+          RELEASE_TAG="${VERSION}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
           echo "build_num=$BUILD_NUM" >> $GITHUB_OUTPUT
           echo "asset_base=$ASSET_BASE" >> $GITHUB_OUTPUT
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION, Short SHA: $SHORT_SHA, Timestamp: $TIMESTAMP, Build: #$BUILD_NUM"
+          echo "Version: $VERSION, Short SHA: $SHORT_SHA, Build: #$BUILD_NUM"
           echo "Asset Base: $ASSET_BASE"
           echo "Release Tag: $RELEASE_TAG"
+
+      - name: Create source archive
+        run: |
+          find . -maxdepth 1 -type f -not -name '*.tar.gz' -not -name '*.zip' -print > files_to_archive.txt
+          find . -maxdepth 1 -type d \( -name '.git' -o -name 'node_modules' -o -name 'dist' -o -name 'android' -o -name '.github' -o -name '.gitignore' -o -name '*.tar.gz' -o -name '*.zip' \) -prune -o -type f -print >> files_to_archive.txt 2>/dev/null
+          tar -czf source.tar.gz -T files_to_archive.txt
+          rm -f files_to_archive.txt
+          ls -la source.tar.gz
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          TAG_NAME="v${{ steps.version.outputs.version }}"
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+            echo "Release $TAG_NAME already exists"
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+            echo "Release $TAG_NAME does not exist"
+          fi
 
       - name: Rename artifacts
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk ${{ steps.version.outputs.asset_base }}.apk
-          cp source.tar.gz ${{ steps.version.outputs.asset_base }}.tar.gz
-          ls -la ${{ steps.version.outputs.asset_base }}.*
+          ls -la ${{ steps.version.outputs.asset_base }}.apk
 
-      - name: Create or update Release
+      - name: Create new Release
+        if: success() && steps.check_release.outputs.release_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v${{ env.RELEASE_TAG }}"
-          name: "ArtFlow UI v${{ env.RELEASE_TAG }}"
+          tag_name: "v${{ steps.version.outputs.version }}"
+          name: "ArtFlow UI v${{ steps.version.outputs.version }}"
           body: |
-            ArtFlow UI v${{ env.RELEASE_TAG }}
-
-            **Build #${{ github.run_number }}**
-
-            ArtFlow UI - AI 生图移动端应用
-
-            ## 功能特性
-            - 节点画布（添加、移动、选择节点）
-            - AI 生图节点（GRSAI 服务商，支持 nano-banana-2 模型）
-            - 图片节点（上传、本地图片支持）
-            - 项目管理（创建、打开、删除项目）
-            - 数据导出/导入（TXT 格式）
-            - 节点复制功能
-
-            ## 已修复
-            - 屏幕旋转锁定功能
-            - AI 生图节点分辨率和比例参数
-            - 选项面板跟随节点移动
+            ArtFlow UI v${{ steps.version.outputs.version }} - Build #${{ steps.version.outputs.build_num }}
 
             Commit: ${{ github.sha }}
 
+            APK: ${{ steps.version.outputs.asset_base }}.apk
             APK Size: ${{ env.APK_SIZE }} bytes
           files: |
             ${{ steps.version.outputs.asset_base }}.apk
-            ${{ steps.version.outputs.asset_base }}.tar.gz
+            source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+
+      - name: Upload to existing Release
+        if: success() && steps.check_release.outputs.release_exists == 'true'
+        run: |
+          TAG_NAME="v${{ steps.version.outputs.version }}"
+          echo "Uploading assets to existing release $TAG_NAME..."
+          gh release upload "$TAG_NAME" ${{ steps.version.outputs.asset_base }}.apk source.tar.gz --clobber

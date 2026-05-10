@@ -1,4 +1,4 @@
-package com.storyboard.copilot;
+package com.artflow.ui;
 
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
