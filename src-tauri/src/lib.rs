@@ -21,10 +21,10 @@ fn resolve_log_dir() -> Option<PathBuf> {
 
     #[cfg(target_os = "macos")]
     if let Ok(home) = std::env::var("HOME") {
-        candidates.push(PathBuf::from(home).join("Library/Logs/artflow-ui"));
+        candidates.push(PathBuf::from(home).join("Library/Logs/storyboard-copilot"));
     }
 
-    candidates.push(std::env::temp_dir().join("artflow-ui/logs"));
+    candidates.push(std::env::temp_dir().join("storyboard-copilot/logs"));
 
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join("logs"));

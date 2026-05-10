@@ -1,6 +1,6 @@
 import type { ProjectSummaryRecord, ProjectRecord } from '../commands/projectState';
 
-const DB_NAME = 'ArtFlowUI';
+const DB_NAME = 'StoryboardCopilot';
 const DB_VERSION = 1;
 const STORE_NAME = 'projects';
 

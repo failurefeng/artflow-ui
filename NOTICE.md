@@ -2,10 +2,10 @@
 
 ## 本项目与衍生声明
 
-**Storyboard-Copilot-Mobile** 是基于 [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot) 项目衍生的 Android 移动客户端。
+**ArtFlow UI** 是基于 [ArtFlow UI](https://github.com/failurefeng/artflow-ui) 项目的 Android 移动客户端。
 
 ### 原始项目信息
-- **原始项目**: [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot)
+- **原始项目**: [ArtFlow UI](https://github.com/failurefeng/artflow-ui)
 - **描述**: 基于节点画布的 AI 分镜工作台
 - **许可证**: 本项目采用 MIT License 开源
 
@@ -16,7 +16,7 @@
 - 添加本地存储持久化（IndexedDB）
 
 ### 致谢
-感谢原始项目 [henjicc/Storyboard-Copilot](https://github.com/henjicc/Storyboard-Copilot) 的开源贡献。
+感谢 [ArtFlow UI](https://github.com/failurefeng/artflow-ui) 项目团队的开源贡献。
 
 ### 第三方开源组件
 本项目使用了以下开源组件，遵循其各自的许可证：

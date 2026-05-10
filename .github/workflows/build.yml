@@ -119,7 +119,7 @@ jobs:
           RELEASE_ID=$(gh release view "$TAG_NAME" --json id --jq .id 2>/dev/null || echo "")
           if [ -n "$RELEASE_ID" ]; then
             echo "Uploading assets to existing release $RELEASE_ID..."
-            gh release upload "$TAG_NAME" ${{ steps.verify.outputs.APK_NAME }} source.tar.gz --clobber
+            gh release upload "$TAG_NAME" ${{ steps.rename_apk.outputs.APK_NAME }} source.tar.gz --clobber
           else
             echo "Release not found, creating new one..."
             gh release create "$TAG_NAME" ${{ steps.rename_apk.outputs.APK_NAME }} source.tar.gz --title "ArtFlow UI ${{ env.VERSION }} (Build ${{ github.run_number }})"

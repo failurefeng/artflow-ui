@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.artflow.ui',
-  appName: 'ArtFlow UI',
+  appId: 'com.storyboard.copilot',
+  appName: 'Storyboard Copilot',
   webDir: 'dist',
   android: {
     backgroundColor: '#111227',
