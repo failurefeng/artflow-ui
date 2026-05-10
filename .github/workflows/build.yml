@@ -67,10 +67,17 @@ jobs:
           rm -f files_to_archive.txt
           ls -la source.tar.gz
 
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
       - name: Check if tag already exists
         id: check_tag
         run: |
-          TAG_NAME="v${{ github.run_number }}"
+          TAG_NAME="v${{ steps.version.outputs.version }}"
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
             echo "tag_exists=true" >> $GITHUB_OUTPUT
             echo "Tag $TAG_NAME already exists, will skip release creation"
@@ -83,12 +90,22 @@ jobs:
         if: success() && steps.check_tag.outputs.tag_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v${{ github.run_number }}"
-          name: "Storyboard Copilot Build ${{ github.run_number }}"
+          tag_name: "v${{ steps.version.outputs.version }}"
+          name: "Storyboard Copilot v${{ steps.version.outputs.version }}"
           body: |
-            Auto-generated release from commit ${{ github.sha }}
+            Storyboard Copilot v${{ steps.version.outputs.version }}
 
-            Build #${{ github.run_number }}
+            这是 Storyboard Copilot 移动端的正式发布版本。
+
+            ## 功能特性
+            - AI 生图功能（支持多种模型服务商）
+            - 分镜脚本生成
+            - 图像编辑和处理
+            - 数据导入导出
+            - 屏幕旋转锁定
+            - 后台运行支持
+
+            Commit: ${{ github.sha }}
 
             APK Size: ${{ env.APK_SIZE }} bytes
           files: |
@@ -101,12 +118,12 @@ jobs:
         if: success() && steps.check_tag.outputs.tag_exists == 'true'
         run: |
           echo "Tag already exists. Checking for existing release..."
-          TAG_NAME="v${{ github.run_number }}"
+          TAG_NAME="v${{ steps.version.outputs.version }}"
           RELEASE_ID=$(gh release view "$TAG_NAME" --json id --jq .id 2>/dev/null || echo "")
           if [ -n "$RELEASE_ID" ]; then
             echo "Uploading assets to existing release $RELEASE_ID..."
             gh release upload "$TAG_NAME" android/app/build/outputs/apk/debug/app-debug.apk source.tar.gz --clobber
           else
             echo "Release not found, creating new one..."
-            gh release create "$TAG_NAME" android/app/build/outputs/apk/debug/app-debug.apk source.tar.gz --title "Storyboard Copilot Build ${{ github.run_number }}"
+            gh release create "$TAG_NAME" android/app/build/outputs/apk/debug/app-debug.apk source.tar.gz --title "Storyboard Copilot v${{ steps.version.outputs.version }}"
           fi
