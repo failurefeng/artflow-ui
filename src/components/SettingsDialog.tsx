@@ -901,22 +901,6 @@ export function SettingsDialog({
 
                   <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
                     <div className="mb-3">
-                      <h3 className="text-sm font-medium text-text-dark">屏幕旋转锁定</h3>
-                      <p className="mt-1 text-xs text-text-muted">控制应用在手机上的屏幕旋转行为</p>
-                    </div>
-                    <UiSelect
-                      value={localScreenOrientationLock}
-                      onChange={(event) => setLocalScreenOrientationLock(event.target.value as 'auto' | 'portrait' | 'landscape')}
-                      className="h-9 text-sm w-full"
-                    >
-                      <option value="auto">自动旋转（跟随系统设置）</option>
-                      <option value="portrait">锁定竖屏</option>
-                      <option value="landscape">锁定横屏</option>
-                    </UiSelect>
-                  </div>
-
-                  <div className="rounded-lg border border-border-dark bg-bg-dark p-4">
-                    <div className="mb-3">
                       <h3 className="text-sm font-medium text-text-dark">
                         {t('settings.downloadPresetPaths')}
                       </h3>

@@ -134,6 +134,7 @@ interface CanvasState {
 
   deleteNode: (nodeId: string) => void;
   deleteNodes: (nodeIds: string[]) => void;
+  duplicateNode: (nodeId: string) => string | null;
   groupNodes: (nodeIds: string[]) => string | null;
   ungroupNode: (groupNodeId: string) => boolean;
   deleteEdge: (edgeId: string) => void;
@@ -1288,6 +1289,40 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         dragHistorySnapshot: null,
       };
     });
+  },
+
+  duplicateNode: (nodeId) => {
+    const state = get();
+    const sourceNode = state.nodes.find((n) => n.id === nodeId);
+    if (!sourceNode) {
+      return null;
+    }
+
+    const offset = 40;
+    const newPosition = {
+      x: sourceNode.position.x + offset,
+      y: sourceNode.position.y + offset,
+    };
+
+    const newNode = canvasNodeFactory.createNode(
+      sourceNode.type,
+      newPosition,
+      { ...sourceNode.data }
+    );
+
+    const newNodeId = newNode.id;
+
+    set({
+      nodes: [...state.nodes, newNode],
+      history: {
+        past: pushSnapshot(state.history.past, createSnapshot(state.nodes, state.edges)),
+        future: [],
+      },
+      dragHistorySnapshot: null,
+      selectedNodeId: newNodeId,
+    });
+
+    return newNodeId;
   },
 
   groupNodes: (nodeIds) => {

@@ -60,6 +60,7 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
   const canCopyStoryboardText = isStoryboardGen || isStoryboardSplit;
   const tools = useMemo(() => getNodeToolPlugins(node), [node]);
   const deleteNode = useCanvasStore((state) => state.deleteNode);
+  const duplicateNode = useCanvasStore((state) => state.duplicateNode);
   const ungroupNode = useCanvasStore((state) => state.ungroupNode);
   const canReupload = isUploadNode(node) && Boolean(node.data.imageUrl);
   const downloadPresetPaths = useSettingsStore((state) => state.downloadPresetPaths);
@@ -71,6 +72,7 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
   const [isCopySuccess, setIsCopySuccess] = useState(false);
   const [isCopyTextSuccess, setIsCopyTextSuccess] = useState(false);
   const [isCopyErrorSuccess, setIsCopyErrorSuccess] = useState(false);
+  const [isDuplicateSuccess, setIsDuplicateSuccess] = useState(false);
   const downloadMenuRef = useRef<HTMLDivElement | null>(null);
   const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyTextFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -275,6 +277,19 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
     }
   }, [canCopyGenerationError, generationErrorReport]);
 
+  const handleDuplicateNode = useCallback(() => {
+    setIsDuplicateSuccess(true);
+    if (copyFeedbackTimerRef.current) {
+      clearTimeout(copyFeedbackTimerRef.current);
+    }
+    copyFeedbackTimerRef.current = setTimeout(() => {
+      setIsDuplicateSuccess(false);
+      copyFeedbackTimerRef.current = null;
+    }, 1100);
+
+    duplicateNode(node.id);
+  }, [duplicateNode, node.id]);
+
   const handleDownloadSaveAs = useCallback(async () => {
     if (!imageSource) {
       return;
@@ -414,6 +429,20 @@ export const NodeActionToolbar = memo(({ node }: NodeActionToolbarProps) => {
             {t('nodeToolbar.copy')}
           </UiChipButton>
         )}
+        <UiChipButton
+          key="duplicate-node"
+          className={`h-8 ${TOOLBAR_BUTTON_RADIUS_CLASS} px-2.5 text-xs ${TOOLBAR_NEUTRAL_BUTTON_CLASS} ${
+            isDuplicateSuccess
+              ? '!border-emerald-400/70 !bg-emerald-500/20 !text-emerald-200 hover:!bg-emerald-500/30'
+              : ''
+          }`}
+          onClick={() => {
+            handleDuplicateNode();
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+          复制
+        </UiChipButton>
         {!isImageEdit && canCopyStoryboardText && (
           <UiChipButton
             key="storyboard-text-copy"
